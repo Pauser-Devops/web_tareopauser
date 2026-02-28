@@ -1,0 +1,114 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { MESES } from "../../lib/supabase";
+
+const anios = [2024, 2025, 2026];
+const anioParam = Astro.url.searchParams.get("anio");
+const anioActual = anioParam ? parseInt(anioParam) : 2026;
+
+// Genera lista de meses del año actual + histórico
+const meses = Array.from({ length: 12 }, (_, i) => i + 1);
+---
+
+<Layout title="Planillas" breadcrumb="Lista de Tareos">
+    <div class="page-header">
+        <div class="page-header__text">
+            <h2>Planillas de Tareo</h2>
+            <p>Gestiona los tareos mensuales de PAUSER DISTRIBUCIONES S.A.C.</p>
+        </div>
+        <div class="page-header__actions">
+            <select
+                class="form-input"
+                id="sel-anio"
+                style="padding:7px 12px;width:120px"
+            >
+                {
+                    anios.map((a) => (
+                        <option value={String(a)} selected={a === anioActual}>
+                            {a}
+                        </option>
+                    ))
+                }
+            </select>
+        </div>
+    </div>
+
+    <div
+        style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"
+    >
+        {
+            meses.map((m) => {
+                const isCurrent = m === 1 && anioActual === 2026;
+                const isPast =
+                    anioActual < 2026 ||
+                    (anioActual === 2026 && (m === 12 || m === 11 || m === 10));
+                const estado = isCurrent
+                    ? "borrador"
+                    : isPast
+                      ? "cerrado"
+                      : "pendiente";
+                const url =
+                    isCurrent || isPast
+                        ? `/tareo/${anioActual}/${String(m).padStart(2, "0")}`
+                        : "#";
+                return (
+                    <a
+                        href={url}
+                        class="card"
+                        style={`text-decoration:none;display:block;transition:border-color 0.15s;${!isCurrent && !isPast ? "opacity:0.5;cursor:default;pointer-events:none" : "cursor:pointer"}`}
+                    >
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                            <div style="font-size:16px;font-weight:700">
+                                {MESES[m]}
+                            </div>
+                            <span
+                                class={`badge ${estado === "borrador" ? "badge--yellow" : estado === "cerrado" ? "badge--green" : "badge--gray"}`}
+                            >
+                                {estado === "borrador"
+                                    ? "Borrador"
+                                    : estado === "cerrado"
+                                      ? "Cerrado"
+                                      : "Pendiente"}
+                            </span>
+                        </div>
+                        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:10px">
+                            {anioActual}
+                        </div>
+                        {isCurrent && (
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+                                <div>
+                                    <div style="color:var(--color-text-muted)">
+                                        Trabajadores
+                                    </div>
+                                    <div style="font-weight:700;font-size:18px">
+                                        498
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="color:var(--color-text-muted)">
+                                        Neto
+                                    </div>
+                                    <div style="font-weight:700;font-size:13px;color:var(--color-primary)">
+                                        S/ 1,047,374
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {!isCurrent && isPast && (
+                            <div style="font-size:12px;color:var(--color-text-muted)">
+                                Ver histórico →
+                            </div>
+                        )}
+                    </a>
+                );
+            })
+        }
+    </div>
+</Layout>
+
+<script>
+    const sel = document.getElementById("sel-anio") as HTMLSelectElement | null;
+    sel?.addEventListener("change", () => {
+        window.location.href = `/tareo?anio=${sel.value}`;
+    });
+</script>

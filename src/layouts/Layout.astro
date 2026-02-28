@@ -1,0 +1,312 @@
+---
+import "../styles/global.css";
+
+const { title = "Tareo", breadcrumb = "" } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+const navItems = [
+	{ href: "/", label: "Dashboard", icon: "grid" },
+	{ href: "/tareo", label: "Planillas", icon: "file-text" },
+	{ href: "/empleados", label: "Trabajadores", icon: "users" },
+	{ href: "/afp", label: "Tasas AFP", icon: "percent" },
+];
+
+function isActive(href: string) {
+	if (href === "/") return currentPath === "/";
+	return currentPath.startsWith(href);
+}
+---
+
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title} — Sistema de Tareo</title>
+		<meta
+			name="description"
+			content="Sistema de tareo laboral - PAUSER DISTRIBUCIONES S.A.C."
+		/>
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<!-- Supabase config para scripts del layout -->
+		<meta
+			name="sb-url"
+			content={import.meta.env.PUBLIC_SUPABASE_URL ?? ""}
+		/>
+		<meta
+			name="sb-key"
+			content={import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? ""}
+		/>
+	</head>
+	<body>
+		<div class="layout">
+			<!-- Sidebar -->
+			<aside class="sidebar">
+				<div class="sidebar__logo">
+					<h1>PAUSER TAREO</h1>
+					<p>PAUSER DISTRIBUCIONES S.A.C.</p>
+				</div>
+				<nav class="sidebar__nav">
+					<div class="nav-section">
+						<div class="nav-section__title">Principal</div>
+						{
+							navItems.map((item) => (
+								<a
+									href={item.href}
+									class={`nav-link ${isActive(item.href) ? "active" : ""}`}
+								>
+									{item.icon === "grid" && (
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<rect
+												x="3"
+												y="3"
+												width="7"
+												height="7"
+											/>
+											<rect
+												x="14"
+												y="3"
+												width="7"
+												height="7"
+											/>
+											<rect
+												x="14"
+												y="14"
+												width="7"
+												height="7"
+											/>
+											<rect
+												x="3"
+												y="14"
+												width="7"
+												height="7"
+											/>
+										</svg>
+									)}
+									{item.icon === "file-text" && (
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+											<polyline points="14 2 14 8 20 8" />
+											<line
+												x1="16"
+												y1="13"
+												x2="8"
+												y2="13"
+											/>
+											<line
+												x1="16"
+												y1="17"
+												x2="8"
+												y2="17"
+											/>
+											<polyline points="10 9 9 9 8 9" />
+										</svg>
+									)}
+									{item.icon === "users" && (
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+											<circle cx="9" cy="7" r="4" />
+											<path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+											<path d="M16 3.13a4 4 0 0 1 0 7.75" />
+										</svg>
+									)}
+									{item.icon === "percent" && (
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<line
+												x1="19"
+												y1="5"
+												x2="5"
+												y2="19"
+											/>
+											<circle cx="6.5" cy="6.5" r="2.5" />
+											<circle
+												cx="17.5"
+												cy="17.5"
+												r="2.5"
+											/>
+										</svg>
+									)}
+									<span style="display:flex;align-items:center;gap:6px;flex:1">
+										{item.label}
+										{item.href === "/empleados" && (
+											<span
+												id="badge-trabajadores"
+												style="display:none;background:var(--color-warning,#f59e0b);color:#000;font-size:10px;font-weight:800;border-radius:20px;padding:1px 6px;letter-spacing:0.02em;line-height:1.6"
+											/>
+										)}
+									</span>
+								</a>
+							))
+						}
+					</div>
+				</nav>
+				<div class="sidebar__footer">v1.0 &nbsp;·&nbsp; 2026</div>
+			</aside>
+
+			<!-- Main -->
+			<div class="main-content">
+				<header class="topbar">
+					<div class="topbar__breadcrumb">
+						Sistema de Tareo &nbsp;/&nbsp; <span
+							>{breadcrumb || title}</span
+						>
+					</div>
+					<div class="topbar__actions">
+						<span
+							style="font-size:12px;color:var(--color-text-muted)"
+						>
+							{
+								new Date().toLocaleDateString("es-PE", {
+									weekday: "long",
+									year: "numeric",
+									month: "long",
+									day: "numeric",
+								})
+							}
+						</span>
+						<div class="topbar-user" id="topbarUser"></div>
+						<button
+							class="btn btn--ghost topbar-logout"
+							id="logoutBtn"
+							style="font-size:12px;padding:5px 10px;display:none"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								width="14"
+								height="14"
+							>
+								<path
+									d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+								></path>
+								<polyline points="16 17 21 12 16 7"></polyline>
+								<line x1="21" y1="12" x2="9" y2="12"></line>
+							</svg>
+							Salir
+						</button>
+					</div>
+				</header>
+				<main class="page-content">
+					<slot />
+				</main>
+			</div>
+		</div>
+	</body>
+	<!-- ── Guard de sesión + logout ── -->
+	<script>
+		(function () {
+			const SESSION_KEY = "pt_auth";
+			const raw = window.sessionStorage.getItem(SESSION_KEY);
+
+			// Sin sesión → redirigir al login
+			if (!raw) {
+				window.location.href = "/login";
+				return;
+			}
+
+			// Mostrar nombre de usuario en topbar
+			try {
+				const user = JSON.parse(raw);
+				const userEl = document.getElementById("topbarUser");
+				if (userEl && user.nombre) {
+					userEl.innerHTML = `
+						<div style="display:flex;align-items:center;gap:8px;">
+							<div style="width:28px;height:28px;border-radius:50%;background:rgba(79,142,247,0.2);border:1px solid rgba(79,142,247,0.4);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--color-primary);">
+								${user.nombre.charAt(0).toUpperCase()}
+							</div>
+							<div>
+								<div style="font-size:12px;font-weight:600;color:var(--color-text)">${user.nombre.split(" ")[0]}</div>
+								<div style="font-size:10px;color:var(--color-text-muted)">${user.sede ?? ""}</div>
+							</div>
+						</div>`;
+				}
+			} catch (_) {}
+
+			// Botón salir
+			const logoutBtn = document.getElementById("logoutBtn");
+			if (logoutBtn) {
+				logoutBtn.style.display = "inline-flex";
+				logoutBtn.addEventListener("click", () => {
+					window.sessionStorage.removeItem(SESSION_KEY);
+					window.location.href = "/login";
+				});
+			}
+		})();
+	</script>
+
+	<!-- ── Badge de empleados sin config tareo ── -->
+	<script type="module">
+		const sbUrl = document.querySelector('meta[name="sb-url"]')?.content;
+		const sbKey = document.querySelector('meta[name="sb-key"]')?.content;
+		const badge = document.getElementById("badge-trabajadores");
+		if (!badge || !sbUrl || !sbKey || sbKey.startsWith("REEMPLAZAR"))
+			return;
+
+		async function actualizarBadge() {
+			try {
+				// Total empleados activos
+				const [r1, r2] = await Promise.all([
+					fetch(
+						`${sbUrl}/rest/v1/employees?is_active=eq.true&termination_date=is.null&select=id`,
+						{
+							headers: {
+								apikey: sbKey,
+								Authorization: `Bearer ${sbKey}`,
+								Prefer: "count=exact",
+								Range: "0-0",
+							},
+						},
+					),
+					fetch(`${sbUrl}/rest/v1/tareo_employee_config?select=id`, {
+						headers: {
+							apikey: sbKey,
+							Authorization: `Bearer ${sbKey}`,
+							Prefer: "count=exact",
+							Range: "0-0",
+						},
+					}),
+				]);
+				const total = parseInt(
+					r1.headers.get("Content-Range")?.split("/")[1] ?? "0",
+				);
+				const conCfg = parseInt(
+					r2.headers.get("Content-Range")?.split("/")[1] ?? "0",
+				);
+				const sinCfg = Math.max(0, total - conCfg);
+				if (sinCfg > 0) {
+					badge.textContent = String(sinCfg);
+					badge.style.display = "inline-block";
+				} else {
+					badge.style.display = "none";
+				}
+			} catch {
+				/* silencioso */
+			}
+		}
+
+		actualizarBadge();
+		setInterval(actualizarBadge, 60_000); // refrescar cada 60 s
+	</script>
+</html>

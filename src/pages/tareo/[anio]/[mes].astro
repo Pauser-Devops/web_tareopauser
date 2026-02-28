@@ -1,0 +1,73 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import PlanillaGrid from "../../../components/tareo/PlanillaGrid";
+import { MESES } from "../../../lib/supabase";
+
+export function getStaticPaths() {
+    const paths = [];
+    for (const anio of [2024, 2025, 2026, 2027]) {
+        for (let mes = 1; mes <= 12; mes++) {
+            paths.push({
+                params: {
+                    anio: String(anio),
+                    mes: String(mes).padStart(2, "0"),
+                },
+            });
+        }
+    }
+    return paths;
+}
+
+const { anio, mes } = Astro.params;
+const anioNum = parseInt(anio!);
+const mesNum = parseInt(mes!);
+const mesLabel = `${MESES[mesNum]} ${anioNum}`;
+---
+
+<Layout title={`Tareo ${mesLabel}`} breadcrumb={`Planillas / ${mesLabel}`}>
+    <div class="page-header">
+        <div class="page-header__text">
+            <h2>Planilla — {mesLabel}</h2>
+            <p>PAUSER DISTRIBUCIONES S.A.C. &nbsp;·&nbsp; RUC: 20600869940</p>
+        </div>
+        <div class="page-header__actions">
+            <a href="/tareo" class="btn btn--ghost">← Volver</a>
+            <span
+                class="badge badge--yellow"
+                style="font-size:12px;padding:6px 12px">Borrador</span
+            >
+        </div>
+    </div>
+
+    <!-- Info cabecera -->
+    <div
+        style="display:grid;grid-template-columns:repeat(4,auto) 1fr;gap:12px;align-items:center;margin-bottom:16px;padding:12px 16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;font-size:12px"
+    >
+        <div>
+            <span class="text-muted">Mes:</span>
+            <strong style="margin-left:6px">{MESES[mesNum]}</strong>
+        </div>
+        <div style="width:1px;height:20px;background:var(--color-border)"></div>
+        <div>
+            <span class="text-muted">Año:</span>
+            <strong style="margin-left:6px">{anioNum}</strong>
+        </div>
+        <div style="width:1px;height:20px;background:var(--color-border)"></div>
+        <div>
+            <span class="text-muted">Días del mes:</span>
+            <strong style="margin-left:6px">30</strong>
+        </div>
+        <div style="margin-left:auto">
+            <span class="text-muted">Horas/día:</span>
+            <strong style="margin-left:6px">8</strong>
+        </div>
+    </div>
+
+    <!-- Grid interactivo (React island) -->
+    <PlanillaGrid
+        mes={mesNum}
+        anio={anioNum}
+        mesLabel={mesLabel}
+        client:only="react"
+    />
+</Layout>

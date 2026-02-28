@@ -1,0 +1,321 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { MESES } from "../lib/supabase";
+
+// Demo data mientras se configura Supabase
+const anioActual = 2026;
+const mesActual = 1;
+
+const statsDemo = {
+  totalEmpleados: 498,
+  tareosMes: 498,
+  totalBruto: 1245830.5,
+  totalDescuentos: 198456.2,
+  totalNeto: 1047374.3,
+  essalud: 112124.75,
+};
+---
+
+<Layout title="Dashboard" breadcrumb="Inicio">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-header__text">
+      <h2>Bienvenido al Sistema de Tareo</h2>
+      <p>
+        Planilla laboral — PAUSER DISTRIBUCIONES S.A.C. | {MESES[mesActual]}
+        {anioActual}
+      </p>
+    </div>
+    <div class="page-header__actions">
+      <a
+        href={`/tareo/${anioActual}/${String(mesActual).padStart(2, "0")}`}
+        class="btn btn--primary"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+          ></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        Tareo del mes
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-card__label">Trabajadores Activos</div>
+      <div class="stat-card__value">{statsDemo.totalEmpleados}</div>
+      <div class="stat-card__sub">Planilla {MESES[mesActual]} {anioActual}</div>
+      <div class="stat-card__icon">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-card__label">Total Ingresos Brutos</div>
+      <div class="stat-card__value" style="font-size:20px">
+        S/ {
+          statsDemo.totalBruto.toLocaleString("es-PE", {
+            minimumFractionDigits: 2,
+          })
+        }
+      </div>
+      <div class="stat-card__sub">Afecto + No afecto</div>
+      <div
+        class="stat-card__icon"
+        style="background:rgba(52,211,153,0.1);color:var(--color-success)"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <line x1="12" y1="1" x2="12" y2="23"></line><path
+            d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-card__label">Total Descuentos</div>
+      <div
+        class="stat-card__value"
+        style="font-size:20px;color:var(--color-danger)"
+      >
+        S/ {
+          statsDemo.totalDescuentos.toLocaleString("es-PE", {
+            minimumFractionDigits: 2,
+          })
+        }
+      </div>
+      <div class="stat-card__sub">AFP/ONP + Vida Ley + otros</div>
+      <div
+        class="stat-card__icon"
+        style="background:rgba(248,113,113,0.1);color:var(--color-danger)"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="8" y1="12" x2="16" y2="12"></line>
+        </svg>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-card__label">Neto a Pagar</div>
+      <div
+        class="stat-card__value"
+        style="font-size:20px;color:var(--color-primary)"
+      >
+        S/ {
+          statsDemo.totalNeto.toLocaleString("es-PE", {
+            minimumFractionDigits: 2,
+          })
+        }
+      </div>
+      <div class="stat-card__sub">Importe a depositar</div>
+      <div
+        class="stat-card__icon"
+        style="background:rgba(79,142,247,0.1);color:var(--color-primary)"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+          <line x1="1" y1="10" x2="23" y2="10"></line>
+        </svg>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-card__label">EsSalud (9%) Empleador</div>
+      <div
+        class="stat-card__value"
+        style="font-size:20px;color:var(--color-warning)"
+      >
+        S/ {
+          statsDemo.essalud.toLocaleString("es-PE", {
+            minimumFractionDigits: 2,
+          })
+        }
+      </div>
+      <div class="stat-card__sub">Aporte patronal</div>
+      <div
+        class="stat-card__icon"
+        style="background:rgba(251,191,36,0.1);color:var(--color-warning)"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tareos recientes -->
+  <div class="card">
+    <div class="card__header">
+      <div class="card__title">Tareos del Año {anioActual}</div>
+      <a
+        href="/tareo"
+        class="btn btn--ghost"
+        style="font-size:12px;padding:5px 10px">Ver todos →</a
+      >
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th>Año</th>
+            <th>Trabajadores</th>
+            <th>Estado</th>
+            <th>Neto Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            [1, 2].map((m) => (
+              <tr>
+                <td style="font-weight:600">{MESES[m]}</td>
+                <td class="text-muted">{anioActual}</td>
+                <td>{m === 1 ? 498 : "—"}</td>
+                <td>
+                  <span
+                    class={`badge ${m === 1 ? "badge--yellow" : "badge--gray"}`}
+                  >
+                    {m === 1 ? "Borrador" : "Pendiente"}
+                  </span>
+                </td>
+                <td class="cell-currency">
+                  {m === 1 ? "S/ 1,047,374.30" : "—"}
+                </td>
+                <td>
+                  <a
+                    href={`/tareo/${anioActual}/${String(m).padStart(2, "0")}`}
+                    class="btn btn--secondary"
+                    style="font-size:12px;padding:5px 12px"
+                  >
+                    {m === 1 ? "Editar" : "Crear"}
+                  </a>
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Info SUNAT -->
+  <div
+    style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px"
+  >
+    <div class="card">
+      <div class="card__header">
+        <div class="card__title">Tasas Previsionales Vigentes</div>
+      </div>
+      <table class="data-table" style="font-size:12px">
+        <thead>
+          <tr><th>AFP</th><th>Código</th><th>Flujo</th><th>Mixta</th></tr>
+        </thead>
+        <tbody>
+          {
+            [
+              { n: "PRIMA", t: "PRIMA", f: "12.97%", m: "—" },
+              { n: "PROFUTURO", t: "PROFUT", f: "13.06%", m: "11.37%" },
+              { n: "INTEGRA", t: "INTEGR", f: "12.92%", m: "11.37%" },
+              { n: "HABITAT", t: "HABITAT", f: "12.84%", m: "11.37%" },
+              { n: "ONP", t: "ONP", f: "13.00%", m: "—" },
+            ].map((a) => (
+              <tr>
+                <td style="font-weight:600">{a.n}</td>
+                <td class="mono">{a.t}</td>
+                <td class="text-primary">{a.f}</td>
+                <td class="text-muted">{a.m}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <div class="card__title">Aportes del Empleador</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        {
+          [
+            {
+              label: "EsSalud",
+              pct: "9.00%",
+              desc: "Sobre remuneración computable",
+            },
+            {
+              label: "EPS (si aplica)",
+              pct: "2.25%",
+              desc: "Descuento compensatorio EsSalud",
+            },
+            {
+              label: "SCTR Salud",
+              pct: "Variable",
+              desc: "Según actividad de riesgo",
+            },
+            { label: "Vida Ley", pct: "0.53%", desc: "A cargo del trabajador" },
+          ].map((r) => (
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--color-border)">
+              <div>
+                <div style="font-weight:600;font-size:13px">{r.label}</div>
+                <div class="text-muted" style="font-size:11px">
+                  {r.desc}
+                </div>
+              </div>
+              <div class="badge badge--blue">{r.pct}</div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</Layout>

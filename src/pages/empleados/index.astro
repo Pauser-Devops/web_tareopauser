@@ -1,0 +1,794 @@
+---
+import Layout from "../../layouts/Layout.astro";
+const sbUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? "";
+const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
+---
+
+<Layout title="Trabajadores" breadcrumb="Trabajadores">
+    <!-- Cabecera -->
+    <div class="page-header">
+        <div class="page-header__text">
+            <h2>Trabajadores</h2>
+            <p>
+                Gestión del padrón de empleados de PAUSER DISTRIBUCIONES S.A.C.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <div
+                id="indicadores-bar"
+                style="display:none;gap:10px;align-items:center"
+            >
+                <span
+                    id="ind-nuevos"
+                    class="badge badge--green"
+                    style="display:none;cursor:default"></span>
+                <span
+                    id="ind-bajas"
+                    class="badge badge--red"
+                    style="display:none;cursor:default"></span>
+                <span
+                    id="ind-cambios"
+                    class="badge badge--yellow"
+                    style="display:none;cursor:default"></span>
+            </div>
+            <span
+                id="realtime-dot"
+                style="display:none;width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 6px #34d399"
+                title="Tiempo real activo"></span>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div
+        style="display:flex;gap:0;border-bottom:1px solid var(--color-border);margin-bottom:0"
+    >
+        <button class="tab-btn active" data-tab="todos">Todos</button>
+        <button class="tab-btn" data-tab="sinconfig">
+            ⚠️ Sin config tareo
+            <span
+                id="tab-badge-sinconfig"
+                class="badge badge--yellow"
+                style="display:none;margin-left:4px"></span>
+        </button>
+        <button class="tab-btn" data-tab="nuevos">🟢 Nuevos del año</button>
+        <button class="tab-btn" data-tab="bajas">🔴 Bajas</button>
+        <button class="tab-btn" data-tab="cambios">🟡 Cambios</button>
+    </div>
+
+    <!-- Filtro año/mes (solo visible en tab Nuevos) -->
+    <div
+        id="filtro-mes-bar"
+        style="display:none;gap:8px;align-items:center;padding:10px 0 14px;border-bottom:1px solid var(--color-border);margin-bottom:14px;flex-wrap:wrap"
+    >
+        <span style="font-size:11px;color:var(--color-text-muted)"
+            >Filtrar nuevos:</span
+        >
+        <select
+            class="form-input"
+            id="sel-anio"
+            style="width:100px;padding:5px 8px;font-size:12px"></select>
+        <select
+            class="form-input"
+            id="sel-mes"
+            style="width:155px;padding:5px 8px;font-size:12px"
+        >
+            <option value="">Todos los meses</option>
+            <option value="01">Enero</option>
+            <option value="02">Febrero</option>
+            <option value="03">Marzo</option>
+            <option value="04">Abril</option>
+            <option value="05">Mayo</option>
+            <option value="06">Junio</option>
+            <option value="07">Julio</option>
+            <option value="08">Agosto</option>
+            <option value="09">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+        </select>
+    </div>
+
+    <div style="margin-bottom:16px"></div>
+
+    <!-- Filtros -->
+    <div
+        style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap"
+        id="filtros-bar"
+    >
+        <input
+            type="text"
+            placeholder="🔍 Buscar por nombre, DNI o cargo..."
+            class="form-input"
+            style="width:320px"
+            id="buscar"
+        />
+        <select class="form-input" style="width:160px" id="filtro-cargo">
+            <option value="">Todos los cargos</option>
+        </select>
+        <select class="form-input" style="width:120px" id="filtro-sede">
+            <option value="">Todas las sedes</option>
+        </select>
+        <span
+            id="loading-txt"
+            style="font-size:12px;color:var(--color-text-muted);align-self:center"
+            >Cargando...</span
+        >
+    </div>
+
+    <!-- Tabla -->
+    <div class="table-wrapper">
+        <table class="data-table" id="tabla-empleados">
+            <thead>
+                <tr>
+                    <th>N°</th>
+                    <th>DNI</th>
+                    <th>Apellidos y Nombres</th>
+                    <th>Cargo</th>
+                    <th>Sede / BU</th>
+                    <th>F. Ingreso</th>
+                    <th>AFP</th>
+                    <th>Sueldo</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+    <div
+        style="margin-top:10px;font-size:12px;color:var(--color-text-muted);text-align:right"
+    >
+        Mostrando <span id="count">0</span> de <span id="total">0</span> trabajadores
+    </div>
+</Layout>
+
+<!-- ── Modal Configurar Tareo ── -->
+<div class="modal-overlay" id="modal-overlay" style="display:none">
+    <div class="modal" style="max-width:560px">
+        <div class="modal__header">
+            <div class="modal__title" id="modal-titulo">Configurar Tareo</div>
+            <button
+                class="btn btn--ghost"
+                id="modal-cerrar"
+                style="padding:4px 8px">✕</button
+            >
+        </div>
+        <div class="modal__body">
+            <div
+                id="emp-info"
+                style="background:var(--color-surface-2,rgba(255,255,255,0.04));border:1px solid var(--color-border);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:12px"
+            >
+                <div style="font-weight:700;font-size:13px" id="info-nombre">
+                </div>
+                <div
+                    style="color:var(--color-text-muted);margin-top:3px"
+                    id="info-detalle"
+                >
+                </div>
+            </div>
+            <form id="form-config" autocomplete="off">
+                <input type="hidden" id="f-empid" />
+                <div
+                    style="display:grid;grid-template-columns:1fr 1fr;gap:14px"
+                >
+                    <div class="form-group">
+                        <label class="form-label"
+                            >AFP / Sistema Pensionario *</label
+                        >
+                        <select class="form-input" id="f-afp" required>
+                            <option value="PRIMA">PRIMA (12.97%)</option>
+                            <option value="PROFUT">PROFUTURO (13.06%)</option>
+                            <option value="INTEGR">INTEGRA (12.92%)</option>
+                            <option value="HABITAT">HABITAT (12.84%)</option>
+                            <option value="ONP"
+                                >ONP — Sistema Nacional (13.00%)</option
+                            >
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sueldo Base (S/) *</label>
+                        <input
+                            type="number"
+                            class="form-input"
+                            id="f-sueldo"
+                            min="1025"
+                            step="50"
+                            placeholder="1025"
+                            required
+                        />
+                    </div>
+                    <div
+                        class="form-group"
+                        style="display:flex;align-items:center;gap:10px;padding-top:18px"
+                    >
+                        <input
+                            type="checkbox"
+                            id="f-vida-ley"
+                            checked
+                            style="width:16px;height:16px;accent-color:var(--color-primary)"
+                        />
+                        <label
+                            for="f-vida-ley"
+                            class="form-label"
+                            style="margin:0;cursor:pointer"
+                            >Vida Ley (0.53%)</label
+                        >
+                    </div>
+                    <div
+                        class="form-group"
+                        style="display:flex;align-items:center;gap:10px;padding-top:18px"
+                    >
+                        <input
+                            type="checkbox"
+                            id="f-eps"
+                            style="width:16px;height:16px;accent-color:var(--color-primary)"
+                        />
+                        <label
+                            for="f-eps"
+                            class="form-label"
+                            style="margin:0;cursor:pointer">EPS (2.25%)</label
+                        >
+                    </div>
+                    <div
+                        class="form-group"
+                        style="display:flex;align-items:center;gap:10px"
+                    >
+                        <input
+                            type="checkbox"
+                            id="f-sctr"
+                            style="width:16px;height:16px;accent-color:var(--color-primary)"
+                        />
+                        <label
+                            for="f-sctr"
+                            class="form-label"
+                            style="margin:0;cursor:pointer">SCTR</label
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Cuenta Haberes</label>
+                        <input
+                            type="text"
+                            class="form-input"
+                            id="f-cuenta"
+                            placeholder="N° cuenta bancaria"
+                        />
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1">
+                        <label class="form-label">Observaciones</label>
+                        <input
+                            type="text"
+                            class="form-input"
+                            id="f-obs"
+                            placeholder="Notas adicionales"
+                        />
+                    </div>
+                </div>
+                <div
+                    id="modal-error"
+                    style="display:none;color:var(--color-danger,#f87171);font-size:12px;margin-top:8px"
+                >
+                </div>
+            </form>
+        </div>
+        <div class="modal__footer">
+            <button class="btn btn--ghost" id="btn-cancelar">Cancelar</button>
+            <button class="btn btn--primary" id="btn-guardar">
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    width="14"
+                    height="14"
+                >
+                    <path
+                        d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                    ></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                </svg>
+                Guardar config tareo
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div
+    id="toast-root"
+    style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px"
+>
+</div>
+
+<meta name="sb-url-emp" content={sbUrl} />
+<meta name="sb-key-emp" content={sbKey} />
+
+<style>
+    .tab-btn {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        transition:
+            color 0.15s,
+            border-color 0.15s;
+        font-family: inherit;
+    }
+    .tab-btn:hover {
+        color: var(--color-text);
+    }
+    .tab-btn.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+    }
+    .baja-row td {
+        opacity: 0.6;
+    }
+</style>
+
+<script type="module">
+    // ── Config ───────────────────────────────────────────────────────────────
+    const SB_URL =
+        document.querySelector('meta[name="sb-url-emp"]')?.content ?? "";
+    const SB_KEY =
+        document.querySelector('meta[name="sb-key-emp"]')?.content ?? "";
+    const OK = SB_URL && SB_KEY && !SB_KEY.startsWith("REEMPLAZAR");
+
+    const now = new Date();
+    const ANIO = now.getFullYear();
+    // Inicio del año actual
+    const FECHA_ANIO = new Date(ANIO, 0, 1).toISOString();
+    // Inicio del mes actual (para Cambios)
+    const FECHA_MES = new Date(ANIO, now.getMonth(), 1).toISOString();
+
+    // Poblar select de años dinámicamente
+    (function () {
+        const sel = document.getElementById("sel-anio");
+        for (let y = ANIO; y >= 2020; y--) {
+            sel.insertAdjacentHTML(
+                "beforeend",
+                `<option value="${y}"${y === ANIO ? " selected" : ""}>${y}</option>`,
+            );
+        }
+    })();
+
+    // ── Estado ────────────────────────────────────────────────────────────────
+    let ACTIVOS = []; // is_active=true + termination_date IS NULL
+    let BAJAS = []; // is_active=false con termination_date >= inicio mes
+    let CONFIG_MAP = new Map();
+    let tabActiva = "todos";
+
+    // ── Fetch ─────────────────────────────────────────────────────────────────
+    async function sbGet(path) {
+        if (!OK) return [];
+        const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+            headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+        });
+        return r.ok ? r.json() : [];
+    }
+
+    // ── Carga inicial ─────────────────────────────────────────────────────────
+    async function cargar() {
+        const loadEl = document.getElementById("loading-txt");
+        if (!OK) {
+            loadEl.textContent = "⚠️ Configura el anon key en .env";
+            return;
+        }
+        loadEl.textContent = "Cargando...";
+
+        const F =
+            "id,dni,full_name,position,sede,business_unit,entry_date," +
+            "is_active,termination_date,termination_reason,created_at,updated_at";
+
+        const [activos, bajas, cfgs] = await Promise.all([
+            sbGet(
+                `employees?is_active=eq.true&termination_date=is.null&select=${F}&order=full_name`,
+            ),
+            sbGet(
+                `employees?is_active=eq.false&termination_date=gte.${FECHA_MES.slice(0, 10)}&select=${F}&order=termination_date.desc`,
+            ),
+            sbGet("tareo_employee_config?select=*"),
+        ]);
+
+        ACTIVOS = activos;
+        BAJAS = bajas;
+        CONFIG_MAP = new Map(cfgs.map((c) => [c.employee_id, c]));
+
+        poblarFiltros(activos);
+        render();
+        indicadores();
+        loadEl.textContent = "";
+    }
+
+    function poblarFiltros(emps) {
+        const cargos = [...new Set(emps.map((e) => e.position))].sort();
+        const sedes = [...new Set(emps.map((e) => e.sede))].sort();
+        const sCargo = document.getElementById("filtro-cargo");
+        const sSede = document.getElementById("filtro-sede");
+        sCargo.innerHTML = '<option value="">Todos los cargos</option>';
+        sSede.innerHTML = '<option value="">Todas las sedes</option>';
+        cargos.forEach((c) =>
+            sCargo.insertAdjacentHTML("beforeend", `<option>${c}</option>`),
+        );
+        sedes.forEach((s) =>
+            sSede.insertAdjacentHTML("beforeend", `<option>${s}</option>`),
+        );
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    const fmtF = (iso) =>
+        iso ? new Date(iso).toLocaleDateString("es-PE") : "—";
+    const fmtS = (n) =>
+        n != null
+            ? `S/ ${Number(n).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`
+            : "—";
+
+    function render() {
+        const tbody = document.getElementById("tbody");
+        const q = document.getElementById("buscar").value.toLowerCase().trim();
+        const cargo = document.getElementById("filtro-cargo").value;
+        const sede = document.getElementById("filtro-sede").value;
+
+        function filtrar(arr) {
+            return arr.filter(
+                (e) =>
+                    (!q ||
+                        e.full_name.toLowerCase().includes(q) ||
+                        e.dni.includes(q) ||
+                        e.position.toLowerCase().includes(q)) &&
+                    (!cargo || e.position === cargo) &&
+                    (!sede || e.sede === sede),
+            );
+        }
+
+        // TAB BAJAS ────────────────────────────────────────────────────────────
+        if (tabActiva === "bajas") {
+            const filas = filtrar(BAJAS);
+            tbody.innerHTML = "";
+            if (!filas.length) {
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--color-text-muted);font-size:13px">
+                Sin bajas registradas este mes (${now.toLocaleDateString("es-PE", { month: "long", year: "numeric" })})
+            </td></tr>`;
+            } else {
+                filas.forEach((e, i) => {
+                    const tr = document.createElement("tr");
+                    tr.classList.add("baja-row");
+                    tr.innerHTML = `
+                    <td class="text-muted mono">${i + 1}</td>
+                    <td class="mono">${e.dni}</td>
+                    <td style="font-weight:600;font-size:12px">${e.full_name}</td>
+                    <td style="font-size:12px;color:var(--color-text-muted)">${e.position}</td>
+                    <td style="font-size:11px">${e.sede}${e.business_unit ? " / " + e.business_unit : ""}</td>
+                    <td class="text-muted mono">${fmtF(e.entry_date)}</td>
+                    <td colspan="2" style="font-size:11px;color:var(--color-danger,#f87171)">
+                        📅 ${fmtF(e.termination_date)} · ${e.termination_reason ?? "Sin motivo registrado"}
+                    </td>
+                    <td><span class="badge badge--red">BAJA</span></td>
+                    <td>—</td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+            document.getElementById("count").textContent = String(filas.length);
+            document.getElementById("total").textContent = String(BAJAS.length);
+            return;
+        }
+
+        // TABS sobre ACTIVOS ───────────────────────────────────────────────────
+        let filas = filtrar(ACTIVOS);
+        if (tabActiva === "sinconfig")
+            filas = filas.filter((e) => !CONFIG_MAP.has(e.id));
+        if (tabActiva === "nuevos") {
+            // Filtrar por año + mes seleccionados en los selectores
+            const anioSel = document.getElementById("sel-anio").value;
+            const mesSel = document.getElementById("sel-mes").value;
+            filas = filas.filter((e) => {
+                if (!e.entry_date) return false;
+                const [y, m] = e.entry_date.split("-");
+                if (y !== anioSel) return false;
+                if (mesSel && m !== mesSel) return false;
+                return true;
+            });
+        }
+        if (tabActiva === "cambios")
+            filas = filas.filter(
+                (e) => e.updated_at >= FECHA_MES && e.created_at < FECHA_MES,
+            );
+
+        tbody.innerHTML = "";
+        filas.forEach((e, i) => {
+            const cfg = CONFIG_MAP.get(e.id);
+            const anioSel = (() => {
+                const s = document.getElementById("sel-anio");
+                return s ? s.value : String(ANIO);
+            })();
+            const esNuevo = e.entry_date && e.entry_date.startsWith(anioSel);
+            const esCambio = !esNuevo && e.updated_at >= FECHA_MES;
+            const tr = document.createElement("tr");
+
+            const afpBadge = cfg
+                ? `<span class="badge badge--blue mono" style="font-size:10px">${cfg.afp_codigo}</span>`
+                : `<span class="badge badge--red" style="font-size:10px">Sin config</span>`;
+
+            const btnData = `data-id="${e.id}" data-nombre="${(e.full_name || "").replace(/"/g, "&quot;")}"
+            data-dni="${e.dni}" data-cargo="${e.position}" data-sede="${e.sede}"
+            data-afp="${cfg?.afp_codigo ?? "ONP"}" data-sueldo="${cfg?.sueldo_base ?? ""}"
+            data-vida="${cfg?.vida_ley ?? true}" data-eps="${cfg?.eps ?? false}"
+            data-sctr="${cfg?.sctr ?? false}" data-cuenta="${cfg?.cuenta_haberes ?? ""}"
+            data-obs="${cfg?.observaciones ?? ""}"`;
+
+            tr.innerHTML = `
+            <td class="text-muted mono">${i + 1}</td>
+            <td class="mono">${e.dni}</td>
+            <td style="font-weight:600;font-size:12px">
+                ${e.full_name}
+                ${esNuevo ? '<span class="badge badge--green"  style="font-size:9px;margin-left:4px">NUEVO</span>' : ""}
+                ${esCambio ? '<span class="badge badge--yellow" style="font-size:9px;margin-left:4px">CAMBIO</span>' : ""}
+            </td>
+            <td style="font-size:12px;color:var(--color-text-muted)">${e.position}</td>
+            <td style="font-size:11px">${e.sede}${e.business_unit ? " / " + e.business_unit : ""}</td>
+            <td class="text-muted mono">${fmtF(e.entry_date)}</td>
+            <td style="text-align:center">${afpBadge}</td>
+            <td class="cell-currency">${fmtS(cfg?.sueldo_base)}</td>
+            <td><span class="badge badge--green">ACTIVO</span></td>
+            <td><button class="btn btn--${cfg ? "ghost" : "primary"} btn-config"
+                style="padding:4px 10px;font-size:11px" ${btnData}>
+                ${cfg ? "Editar" : "⚠️ Configurar"}
+            </button></td>`;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById("count").textContent = String(filas.length);
+        document.getElementById("total").textContent =
+            tabActiva === "todos"
+                ? String(ACTIVOS.length)
+                : String(filas.length);
+
+        tbody
+            .querySelectorAll(".btn-config")
+            .forEach((btn) =>
+                btn.addEventListener("click", () => abrirModal(btn.dataset)),
+            );
+    }
+
+    // ── Indicadores ───────────────────────────────────────────────────────────
+    function indicadores() {
+        const nuevos = ACTIVOS.filter(
+            (e) => e.entry_date && e.entry_date.startsWith(String(ANIO)),
+        ).length;
+        const cambios = ACTIVOS.filter(
+            (e) => e.updated_at >= FECHA_MES && e.created_at < FECHA_MES,
+        ).length;
+        const bajas = BAJAS.length;
+        const sinCfg = ACTIVOS.filter((e) => !CONFIG_MAP.has(e.id)).length;
+
+        document.getElementById("indicadores-bar").style.display = "flex";
+
+        const set = (id, n, txt) => {
+            const el = document.getElementById(id);
+            if (n > 0) {
+                el.textContent = txt;
+                el.style.display = "inline";
+            } else el.style.display = "none";
+        };
+        set("ind-nuevos", nuevos, `🟢 ${nuevos} nuevos`);
+        set("ind-bajas", bajas, `🔴 ${bajas} bajas`);
+        set("ind-cambios", cambios, `🟡 ${cambios} cambios`);
+
+        const tb = document.getElementById("tab-badge-sinconfig");
+        if (sinCfg > 0) {
+            tb.textContent = String(sinCfg);
+            tb.style.display = "inline";
+        } else tb.style.display = "none";
+    }
+
+    // ── Modal ─────────────────────────────────────────────────────────────────
+    function abrirModal(d) {
+        document.getElementById("modal-titulo").textContent = CONFIG_MAP.has(
+            d.id,
+        )
+            ? "Editar config tareo"
+            : "Configurar Tareo";
+        document.getElementById("info-nombre").textContent = d.nombre;
+        document.getElementById("info-detalle").textContent =
+            `DNI: ${d.dni} · ${d.cargo} · ${d.sede}`;
+        document.getElementById("f-empid").value = d.id;
+        document.getElementById("f-afp").value = d.afp ?? "ONP";
+        document.getElementById("f-sueldo").value = d.sueldo ?? "";
+        document.getElementById("f-vida-ley").checked = d.vida !== "false";
+        document.getElementById("f-eps").checked = d.eps === "true";
+        document.getElementById("f-sctr").checked = d.sctr === "true";
+        document.getElementById("f-cuenta").value = d.cuenta ?? "";
+        document.getElementById("f-obs").value = d.obs ?? "";
+        document.getElementById("modal-error").style.display = "none";
+        document.getElementById("modal-overlay").style.display = "flex";
+        setTimeout(() => document.getElementById("f-sueldo").focus(), 80);
+    }
+
+    const cerrarModal = () => {
+        document.getElementById("modal-overlay").style.display = "none";
+    };
+    document
+        .getElementById("modal-cerrar")
+        .addEventListener("click", cerrarModal);
+    document
+        .getElementById("btn-cancelar")
+        .addEventListener("click", cerrarModal);
+    document.getElementById("modal-overlay").addEventListener("click", (e) => {
+        if (e.target === document.getElementById("modal-overlay"))
+            cerrarModal();
+    });
+
+    // ── Guardar ───────────────────────────────────────────────────────────────
+    document
+        .getElementById("btn-guardar")
+        .addEventListener("click", async () => {
+            const errEl = document.getElementById("modal-error");
+            errEl.style.display = "none";
+            const empId = document.getElementById("f-empid").value;
+            const afp = document.getElementById("f-afp").value;
+            const sueldo = parseFloat(
+                document.getElementById("f-sueldo").value,
+            );
+
+            if (!afp || isNaN(sueldo) || sueldo < 1025) {
+                errEl.textContent =
+                    "Completa AFP y sueldo (mínimo S/ 1,025.00).";
+                errEl.style.display = "block";
+                return;
+            }
+
+            const payload = {
+                employee_id: empId,
+                afp_codigo: afp,
+                sueldo_base: sueldo,
+                vida_ley: document.getElementById("f-vida-ley").checked,
+                eps: document.getElementById("f-eps").checked,
+                sctr: document.getElementById("f-sctr").checked,
+                cuenta_haberes:
+                    document.getElementById("f-cuenta").value.trim() || null,
+                observaciones:
+                    document.getElementById("f-obs").value.trim() || null,
+                updated_at: new Date().toISOString(),
+            };
+
+            const btn = document.getElementById("btn-guardar");
+            btn.disabled = true;
+            btn.textContent = "Guardando...";
+
+            const res = await fetch(`${SB_URL}/rest/v1/tareo_employee_config`, {
+                method: "POST",
+                headers: {
+                    apikey: SB_KEY,
+                    Authorization: `Bearer ${SB_KEY}`,
+                    "Content-Type": "application/json",
+                    Prefer: "resolution=merge-duplicates,return=minimal",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            btn.disabled = false;
+            btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/></svg> Guardar config tareo`;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                errEl.textContent = err?.message ?? `Error ${res.status}`;
+                errEl.style.display = "block";
+                return;
+            }
+
+            CONFIG_MAP.set(empId, payload);
+            cerrarModal();
+            render();
+            indicadores();
+
+            // Actualizar badge sidebar
+            const badge = document.getElementById("badge-trabajadores");
+            if (badge) {
+                const n = ACTIVOS.filter((e) => !CONFIG_MAP.has(e.id)).length;
+                badge.textContent = n > 0 ? String(n) : "";
+                badge.style.display = n > 0 ? "inline-block" : "none";
+            }
+            toast("✅ Configuración guardada");
+        });
+
+    // ── Tabs ──────────────────────────────────────────────────────────────────
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            document
+                .querySelectorAll(".tab-btn")
+                .forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            tabActiva = btn.dataset.tab;
+            const mesBr = document.getElementById("filtro-mes-bar");
+            mesBr.style.display = tabActiva === "nuevos" ? "flex" : "none";
+            document.getElementById("filtros-bar").style.display =
+                tabActiva === "bajas" ? "none" : "flex";
+            render();
+        });
+    });
+
+    // ── Selectores año/mes ──────────────────────────────────────────────────────
+    ["sel-anio", "sel-mes"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("change", render);
+    });
+
+    // ── Filtros ───────────────────────────────────────────────────────────────
+    ["buscar", "filtro-cargo", "filtro-sede"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("input", render);
+        document.getElementById(id)?.addEventListener("change", render);
+    });
+
+    // ── Realtime ──────────────────────────────────────────────────────────────
+    if (OK) {
+        const { createClient } =
+            await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+        const rt = createClient(SB_URL, SB_KEY);
+        rt.channel("emp-rt")
+            .on(
+                "postgres_changes",
+                { event: "INSERT", schema: "public", table: "employees" },
+                ({ new: e }) => {
+                    ACTIVOS.push(e);
+                    render();
+                    indicadores();
+                    toast(
+                        `🟢 Nuevo ingreso: ${e.full_name} · ${e.position} · ${e.sede}`,
+                    );
+                },
+            )
+            .on(
+                "postgres_changes",
+                { event: "UPDATE", schema: "public", table: "employees" },
+                ({ new: e, old }) => {
+                    if (e.termination_date && !old.termination_date) {
+                        ACTIVOS = ACTIVOS.filter((a) => a.id !== e.id);
+                        BAJAS.unshift(e);
+                        toast(
+                            `🔴 Baja: ${e.full_name} · ${e.termination_reason ?? ""}`,
+                        );
+                    } else {
+                        const i = ACTIVOS.findIndex((a) => a.id === e.id);
+                        if (i !== -1) ACTIVOS[i] = { ...ACTIVOS[i], ...e };
+                        toast(`🟡 Actualizado: ${e.full_name}`);
+                    }
+                    render();
+                    indicadores();
+                },
+            )
+            .subscribe((s) => {
+                if (s === "SUBSCRIBED")
+                    document.getElementById("realtime-dot").style.display =
+                        "inline-block";
+            });
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    function toast(msg) {
+        const t = document.createElement("div");
+        t.textContent = msg;
+        Object.assign(t.style, {
+            background: "var(--color-surface-2,#1c2138)",
+            border: "1px solid var(--color-border)",
+            color: "var(--color-text)",
+            padding: "10px 16px",
+            borderRadius: "10px",
+            fontSize: "13px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            opacity: "1",
+            transition: "opacity 0.3s",
+        });
+        document.getElementById("toast-root").appendChild(t);
+        setTimeout(() => {
+            t.style.opacity = "0";
+            setTimeout(() => t.remove(), 300);
+        }, 4000);
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    cargar();
+</script>

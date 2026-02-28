@@ -1,0 +1,1301 @@
+---
+// login.astro — Página de acceso PAUSER TAREO
+// Sin Layout (pantalla completa propia)
+import pauserLogo from "../assets/pauser_logo.png";
+const sbUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? "";
+const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
+---
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Ingresar — PAUSER TAREO</title>
+        <meta
+            name="description"
+            content="Sistema de gestión de planillas laborales — PAUSER DISTRIBUCIONES S.A.C."
+        />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <!-- Supabase config (usadas por el script de login) -->
+        <meta name="sb-url" content={sbUrl} />
+        <meta name="sb-key" content={sbKey} />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* ── Reset mínimo ── */
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            :root {
+                --bg: #0b0e1a;
+                --surface: #131726;
+                --surface2: #1c2138;
+                --border: #252d4a;
+                --primary: #4f8ef7;
+                --primary-glow: rgba(79, 142, 247, 0.35);
+                --primary-hover: #6ba1ff;
+                --success: #34d399;
+                --text: #e2e8f0;
+                --muted: #7c8699;
+                --accent: #8b5cf6;
+            }
+
+            html,
+            body {
+                font-family: "Inter", system-ui, sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                min-height: 100vh;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            /* ══════════════════════════════════════════
+         LAYOUT PRINCIPAL
+         ══════════════════════════════════════════ */
+            .login-page {
+                display: flex;
+                min-height: 100vh;
+            }
+
+            /* ── Panel izquierdo (branding) ── */
+            .login-left {
+                flex: 1;
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                padding: 48px;
+                background: linear-gradient(
+                    145deg,
+                    #0b0e1a 0%,
+                    #0f1630 40%,
+                    #0b1525 100%
+                );
+            }
+
+            /* Fondo animado tipo malla */
+            .login-left::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(
+                        rgba(79, 142, 247, 0.06) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        90deg,
+                        rgba(79, 142, 247, 0.06) 1px,
+                        transparent 1px
+                    );
+                background-size: 48px 48px;
+                animation: grid-drift 20s linear infinite;
+            }
+
+            @keyframes grid-drift {
+                0% {
+                    background-position: 0 0;
+                }
+                100% {
+                    background-position: 48px 48px;
+                }
+            }
+
+            /* Orbe/glow principal */
+            .orb {
+                position: absolute;
+                border-radius: 50%;
+                filter: blur(80px);
+                opacity: 0.45;
+                animation: orb-pulse 8s ease-in-out infinite;
+                pointer-events: none;
+            }
+
+            .orb--blue {
+                width: 460px;
+                height: 460px;
+                background: radial-gradient(
+                    circle,
+                    #2563eb 0%,
+                    transparent 70%
+                );
+                top: -80px;
+                left: -80px;
+                animation-delay: 0s;
+            }
+
+            .orb--purple {
+                width: 340px;
+                height: 340px;
+                background: radial-gradient(
+                    circle,
+                    #7c3aed 0%,
+                    transparent 70%
+                );
+                bottom: 60px;
+                right: -60px;
+                animation-delay: 3s;
+            }
+
+            .orb--cyan {
+                width: 200px;
+                height: 200px;
+                background: radial-gradient(
+                    circle,
+                    #0891b2 0%,
+                    transparent 70%
+                );
+                top: 50%;
+                left: 55%;
+                animation-delay: 6s;
+            }
+
+            @keyframes orb-pulse {
+                0%,
+                100% {
+                    opacity: 0.4;
+                    transform: scale(1);
+                }
+                50% {
+                    opacity: 0.6;
+                    transform: scale(1.08);
+                }
+            }
+
+            /* Partículas flotantes */
+            .particles {
+                position: absolute;
+                inset: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+
+            .particle {
+                position: absolute;
+                border-radius: 50%;
+                background: rgba(79, 142, 247, 0.6);
+                animation: float-up linear infinite;
+            }
+
+            @keyframes float-up {
+                0% {
+                    transform: translateY(100vh) scale(0);
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                90% {
+                    opacity: 0.4;
+                }
+                100% {
+                    transform: translateY(-10vh) scale(1);
+                    opacity: 0;
+                }
+            }
+
+            /* Contenido del panel izquierdo */
+            .left-content {
+                position: relative;
+                z-index: 2;
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 40px;
+            }
+
+            .brand {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .brand__logo {
+                width: 180px;
+                height: auto;
+                background: rgba(255, 255, 255, 0.92);
+                border-radius: 12px;
+                padding: 10px 16px;
+                animation: fade-up 0.6s ease both;
+                display: block;
+            }
+
+            .card__logo {
+                width: 140px;
+                height: auto;
+                background: rgba(255, 255, 255, 0.96);
+                border-radius: 8px;
+                padding: 7px 12px;
+                display: block;
+                margin-bottom: 20px;
+            }
+
+            .brand__badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                background: rgba(79, 142, 247, 0.12);
+                border: 1px solid rgba(79, 142, 247, 0.25);
+                border-radius: 20px;
+                padding: 5px 14px;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--primary);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                width: fit-content;
+                animation: fade-up 0.6s ease both;
+            }
+
+            .brand__badge-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--success);
+                box-shadow: 0 0 8px var(--success);
+                animation: blink 2s ease-in-out infinite;
+            }
+
+            @keyframes blink {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.3;
+                }
+            }
+
+            .brand__title {
+                font-size: clamp(38px, 5vw, 56px);
+                font-weight: 900;
+                line-height: 1.05;
+                letter-spacing: -0.04em;
+                animation: fade-up 0.6s 0.1s ease both;
+            }
+
+            .brand__title span {
+                background: linear-gradient(
+                    135deg,
+                    #4f8ef7 0%,
+                    #8b5cf6 60%,
+                    #06b6d4 100%
+                );
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+
+            .brand__subtitle {
+                font-size: 15px;
+                color: var(--muted);
+                font-weight: 400;
+                max-width: 340px;
+                line-height: 1.6;
+                animation: fade-up 0.6s 0.2s ease both;
+            }
+
+            /* Métricas demo */
+            .metrics {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+                animation: fade-up 0.6s 0.35s ease both;
+            }
+
+            .metric {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+                border-radius: 12px;
+                padding: 16px;
+                backdrop-filter: blur(8px);
+                transition:
+                    border-color 0.3s,
+                    background 0.3s;
+            }
+
+            .metric:hover {
+                border-color: rgba(79, 142, 247, 0.3);
+                background: rgba(79, 142, 247, 0.05);
+            }
+
+            .metric__value {
+                font-size: 22px;
+                font-weight: 800;
+                color: var(--text);
+                letter-spacing: -0.03em;
+            }
+
+            .metric__label {
+                font-size: 10.5px;
+                color: var(--muted);
+                margin-top: 3px;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+
+            .metric__indicator {
+                font-size: 10px;
+                color: var(--success);
+                margin-top: 5px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                font-weight: 600;
+            }
+
+            /* Features list */
+            .features {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                animation: fade-up 0.6s 0.45s ease both;
+            }
+
+            .feature {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-size: 13.5px;
+                color: var(--muted);
+            }
+
+            .feature__icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                background: rgba(79, 142, 247, 0.1);
+                border: 1px solid rgba(79, 142, 247, 0.15);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                color: var(--primary);
+            }
+
+            .feature__icon svg {
+                width: 15px;
+                height: 15px;
+            }
+
+            /* Footer izquierdo */
+            .left-footer {
+                position: relative;
+                z-index: 2;
+                font-size: 11.5px;
+                color: var(--muted);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                animation: fade-up 0.6s 0.55s ease both;
+            }
+
+            .left-footer a {
+                color: var(--primary);
+                text-decoration: none;
+            }
+
+            /* ══════════════════════════════════════════
+         PANEL DERECHO (login)
+         ══════════════════════════════════════════ */
+            .login-right {
+                width: 480px;
+                flex-shrink: 0;
+                background: var(--surface);
+                border-left: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 40px 48px;
+                position: relative;
+            }
+
+            /* Línea decorativa top */
+            .login-right::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(
+                    90deg,
+                    var(--primary),
+                    var(--accent),
+                    #06b6d4
+                );
+                opacity: 0.8;
+            }
+
+            .login-card {
+                width: 100%;
+                max-width: 360px;
+                animation: fade-up 0.7s 0.1s ease both;
+            }
+
+            .login-card__header {
+                margin-bottom: 36px;
+            }
+
+            .login-card__eyebrow {
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--primary);
+                margin-bottom: 10px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .login-card__eyebrow::after {
+                content: "";
+                flex: 1;
+                height: 1px;
+                background: var(--border);
+            }
+
+            .login-card__title {
+                font-size: 26px;
+                font-weight: 800;
+                letter-spacing: -0.03em;
+                color: var(--text);
+                margin-bottom: 6px;
+            }
+
+            .login-card__desc {
+                font-size: 13.5px;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+
+            /* Aviso modo libre */
+            .free-notice {
+                background: rgba(251, 191, 36, 0.06);
+                border: 1px solid rgba(251, 191, 36, 0.2);
+                border-radius: 10px;
+                padding: 11px 14px;
+                margin-bottom: 24px;
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .free-notice__icon {
+                flex-shrink: 0;
+                margin-top: 1px;
+                color: #fbbf24;
+            }
+
+            .free-notice__text {
+                font-size: 12px;
+                color: #d4a922;
+                line-height: 1.5;
+            }
+
+            .free-notice__text strong {
+                display: block;
+                font-weight: 700;
+                color: #fbbf24;
+                margin-bottom: 2px;
+            }
+
+            /* Formulario */
+            .login-form {
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+
+            .login-form__group {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .login-form__label {
+                font-size: 11.5px;
+                font-weight: 600;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+
+            .login-form__input-wrap {
+                position: relative;
+            }
+
+            .login-form__input-icon {
+                position: absolute;
+                left: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: var(--muted);
+                pointer-events: none;
+            }
+
+            .login-form__input-icon svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .login-form__input {
+                width: 100%;
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                color: var(--text);
+                padding: 11px 12px 11px 40px;
+                font-size: 14px;
+                font-family: inherit;
+                transition:
+                    border-color 0.2s,
+                    box-shadow 0.2s;
+                outline: none;
+            }
+
+            .login-form__input::placeholder {
+                color: var(--muted);
+                font-size: 13px;
+            }
+
+            .login-form__input:focus {
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.12);
+            }
+
+            .login-form__toggle-pw {
+                position: absolute;
+                right: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: var(--muted);
+                padding: 2px;
+                display: flex;
+                align-items: center;
+                transition: color 0.2s;
+            }
+
+            .login-form__toggle-pw:hover {
+                color: var(--text);
+            }
+
+            .login-form__toggle-pw svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            /* Botón submit */
+            .login-btn {
+                width: 100%;
+                padding: 13px;
+                border-radius: 10px;
+                background: linear-gradient(135deg, #3b82f6, #6366f1);
+                color: #fff;
+                font-size: 14px;
+                font-weight: 700;
+                font-family: inherit;
+                border: none;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 9px;
+                position: relative;
+                overflow: hidden;
+                transition:
+                    opacity 0.2s,
+                    transform 0.15s;
+                margin-top: 8px;
+                box-shadow:
+                    0 4px 24px rgba(79, 142, 247, 0.3),
+                    0 1px 2px rgba(0, 0, 0, 0.4);
+            }
+
+            .login-btn::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(
+                    135deg,
+                    rgba(255, 255, 255, 0.12),
+                    transparent
+                );
+                opacity: 0;
+                transition: opacity 0.2s;
+            }
+
+            .login-btn:hover:not(:disabled)::before {
+                opacity: 1;
+            }
+
+            .login-btn:hover:not(:disabled) {
+                transform: translateY(-1px);
+                box-shadow:
+                    0 6px 32px rgba(79, 142, 247, 0.4),
+                    0 1px 2px rgba(0, 0, 0, 0.4);
+            }
+
+            .login-btn:active:not(:disabled) {
+                transform: translateY(0);
+            }
+
+            .login-btn:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+            }
+
+            .login-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            /* Spinner */
+            .spinner {
+                width: 16px;
+                height: 16px;
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-top-color: #fff;
+                border-radius: 50%;
+                animation: spin 0.7s linear infinite;
+                display: none;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* Error */
+            .login-error {
+                background: rgba(248, 113, 113, 0.08);
+                border: 1px solid rgba(248, 113, 113, 0.25);
+                border-radius: 8px;
+                padding: 10px 14px;
+                font-size: 12.5px;
+                color: #f87171;
+                display: none;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .login-error svg {
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+            }
+
+            .login-error.visible {
+                display: flex;
+            }
+
+            /* Separador */
+            .login-divider {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                color: var(--muted);
+                font-size: 11px;
+                margin: 4px 0;
+            }
+
+            .login-divider::before,
+            .login-divider::after {
+                content: "";
+                flex: 1;
+                height: 1px;
+                background: var(--border);
+            }
+
+            /* Footer derecho */
+            .login-card__footer {
+                margin-top: 28px;
+                text-align: center;
+                font-size: 11.5px;
+                color: var(--muted);
+                line-height: 1.7;
+            }
+
+            /* ── Animaciones globales ── */
+            @keyframes fade-up {
+                from {
+                    opacity: 0;
+                    transform: translateY(18px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            /* ── Responsive ── */
+            @media (max-width: 900px) {
+                .login-left {
+                    display: none;
+                }
+                .login-right {
+                    width: 100%;
+                    border-left: none;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Redirigir si ya hay sesión -->
+        <script>
+            if (window.sessionStorage.getItem("pt_auth")) {
+                window.location.href = "/";
+            }
+        </script>
+
+        <div class="login-page">
+            <!-- ═══════════════ PANEL IZQUIERDO ═══════════════ -->
+            <div class="login-left">
+                <!-- Fondo animado -->
+                <div class="orb orb--blue"></div>
+                <div class="orb orb--purple"></div>
+                <div class="orb orb--cyan"></div>
+                <div class="particles" id="particles"></div>
+
+                <!-- Contenido -->
+                <div class="left-content">
+                    <!-- Branding -->
+                    <div class="brand">
+                        <img
+                            src={pauserLogo.src}
+                            alt="PAUSER DISTRIBUCIONES"
+                            class="brand__logo"
+                        />
+                        <div class="brand__badge">
+                            <span class="brand__badge-dot"></span>
+                            Sistema Activo
+                        </div>
+                        <h1 class="brand__title">
+                            <span>TAREO</span>
+                        </h1>
+                        <p class="brand__subtitle">
+                            Gestión de planillas laborales conforme<br />
+                            a normativas SUNAT — PAUSER DISTRIBUCIONES S.A.C.
+                        </p>
+                    </div>
+
+                    <!-- Métricas rápidas demo -->
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric__value">498</div>
+                            <div class="metric__label">Trabajadores</div>
+                            <div class="metric__indicator">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    width="10"
+                                    height="10"
+                                    ><polyline points="18 15 12 9 6 15"
+                                    ></polyline></svg
+                                >
+                                Activos
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric__value">S/1.2M</div>
+                            <div class="metric__label">Planilla Feb</div>
+                            <div class="metric__indicator">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    width="10"
+                                    height="10"
+                                    ><polyline points="18 15 12 9 6 15"
+                                    ></polyline></svg
+                                >
+                                Procesado
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric__value">2026</div>
+                            <div class="metric__label">Año Fiscal</div>
+                            <div class="metric__indicator">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    width="10"
+                                    height="10"
+                                    ><circle cx="12" cy="12" r="10"
+                                    ></circle></svg
+                                >
+                                Vigente
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Características -->
+                    <div class="features">
+                        <div class="feature">
+                            <div class="feature__icon">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                                    ></path>
+                                    <polyline points="14 2 14 8 20 8"
+                                    ></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                </svg>
+                            </div>
+                            <span
+                                >Tareo mensual con cálculo automático
+                                AFP/ONP/EsSalud</span
+                            >
+                        </div>
+                        <div class="feature">
+                            <div class="feature__icon">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <rect
+                                        x="3"
+                                        y="3"
+                                        width="18"
+                                        height="18"
+                                        rx="2"></rect>
+                                    <path d="M3 9h18M9 21V9"></path>
+                                </svg>
+                            </div>
+                            <span
+                                >Exportación de planillas a Excel y PDF (SUNAT)</span
+                            >
+                        </div>
+                        <div class="feature">
+                            <div class="feature__icon">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
+                                    ></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <span
+                                >Gestión de trabajadores con contratos y ceses</span
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="left-footer">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        width="14"
+                        height="14"
+                    >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"
+                        ></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    v1.0 &nbsp;·&nbsp; 2026 &nbsp;·&nbsp; PAUSER DISTRIBUCIONES S.A.C.
+                </div>
+            </div>
+
+            <!-- ═══════════════ PANEL DERECHO ═══════════════ -->
+            <div class="login-right">
+                <div class="login-card">
+                    <!-- Header -->
+                    <div class="login-card__header">
+                        <img
+                            src={pauserLogo.src}
+                            alt="PAUSER DISTRIBUCIONES"
+                            class="card__logo"
+                        />
+                        <div class="login-card__eyebrow">Acceso al sistema</div>
+                        <h2 class="login-card__title">Bienvenido de vuelta</h2>
+                        <p class="login-card__desc">
+                            Ingresa tus credenciales para acceder al sistema de
+                            tareo y planillas.
+                        </p>
+                    </div>
+
+                    <!-- Formulario -->
+                    <form class="login-form" id="loginForm" novalidate>
+                        <!-- Error global -->
+                        <div class="login-error" id="loginError">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <span id="loginErrorMsg">Error desconocido</span>
+                        </div>
+
+                        <!-- DNI -->
+                        <div class="login-form__group">
+                            <label for="usuario" class="login-form__label"
+                                >DNI</label
+                            >
+                            <div class="login-form__input-wrap">
+                                <span class="login-form__input-icon">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <rect
+                                            x="2"
+                                            y="5"
+                                            width="20"
+                                            height="14"
+                                            rx="2"></rect>
+                                        <line x1="2" y1="10" x2="22" y2="10"
+                                        ></line>
+                                    </svg>
+                                </span>
+                                <input
+                                    id="usuario"
+                                    type="text"
+                                    inputmode="numeric"
+                                    pattern="[0-9]{8}"
+                                    maxlength="8"
+                                    class="login-form__input"
+                                    placeholder="Número de DNI (8 dígitos)"
+                                    autocomplete="username"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Contraseña -->
+                        <div class="login-form__group">
+                            <label for="password" class="login-form__label"
+                                >Contraseña</label
+                            >
+                            <div class="login-form__input-wrap">
+                                <span class="login-form__input-icon">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <rect
+                                            x="3"
+                                            y="11"
+                                            width="18"
+                                            height="11"
+                                            rx="2"
+                                            ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"
+                                        ></path>
+                                    </svg>
+                                </span>
+                                <input
+                                    id="password"
+                                    type="password"
+                                    class="login-form__input"
+                                    placeholder="••••••••"
+                                    autocomplete="current-password"
+                                    style="padding-right: 40px"
+                                />
+                                <button
+                                    type="button"
+                                    class="login-form__toggle-pw"
+                                    id="togglePw"
+                                    aria-label="Mostrar contraseña"
+                                >
+                                    <svg
+                                        id="eyeIcon"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                                        ></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Botón -->
+                        <button type="submit" class="login-btn" id="loginBtn">
+                            <span class="spinner" id="loginSpinner"></span>
+                            <span id="loginBtnText">Ingresar al sistema</span>
+                            <svg
+                                id="loginArrow"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                            >
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <!-- Footer -->
+                    <div class="login-card__footer">
+                        <div>
+                            Sistema de Tareo — PAUSER DISTRIBUCIONES S.A.C.
+                        </div>
+                        <div style="margin-top:4px; font-size:11px;">
+                            Versión 1.0 &nbsp;·&nbsp; 2026 &nbsp;·&nbsp;
+                            <span style="color: var(--primary)">SUNAT Perú</span
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            // ── Importar módulo de auth (real Supabase) ───────────────────────
+            // Usamos dynamic import para compatibilidad con Astro SSG
+            const { login, getBlockedMs } =
+                (await import("/src/lib/auth.ts").catch(() => null)) ??
+                    (await import("/_astro/auth.ts").catch(() => null)) ?? {
+                        login: null,
+                        getBlockedMs: () => 0,
+                    };
+
+            // Fallback: si el import falla (build estático), usar fetch directo
+            async function doLogin(dni, password) {
+                if (login) return login(dni, password);
+                // Fallback manual usando fetch a Supabase RPC
+                const url =
+                    document.querySelector('meta[name="sb-url"]')?.content ||
+                    "";
+                const key =
+                    document.querySelector('meta[name="sb-key"]')?.content ||
+                    "";
+                if (!url || !key)
+                    return { ok: false, error: "Supabase no configurado." };
+                const res = await fetch(
+                    `${url}/rest/v1/rpc/verify_tareo_login`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            apikey: key,
+                            Authorization: `Bearer ${key}`,
+                        },
+                        body: JSON.stringify({
+                            p_dni: dni.trim(),
+                            p_password: password,
+                        }),
+                    },
+                );
+                const data = await res.json();
+                if (!res.ok || !data?.ok) {
+                    // Rate limiting en cliente (localStorage)
+                    const RL_KEY = "pt_rl";
+                    const st = JSON.parse(
+                        localStorage.getItem(RL_KEY) ||
+                            '{"tries":0,"blockedUntil":0}',
+                    );
+                    st.tries = (st.tries || 0) + 1;
+                    if (st.tries >= 3) {
+                        st.blockedUntil = Date.now() + 30000;
+                        st.tries = 0;
+                    }
+                    localStorage.setItem(RL_KEY, JSON.stringify(st));
+                    return {
+                        ok: false,
+                        error: "Credenciales incorrectas o sin acceso autorizado.",
+                        blockedMs: Math.max(0, st.blockedUntil - Date.now()),
+                    };
+                }
+                const user = {
+                    id: data.id,
+                    nombre: data.nombre,
+                    position: data.position,
+                    sede: data.sede,
+                    rol: data.rol,
+                };
+                sessionStorage.setItem("pt_auth", JSON.stringify(user));
+                localStorage.removeItem("pt_rl");
+                return { ok: true };
+            }
+
+            // ── Partículas flotantes ──────────────────────────────────────────
+            const container = document.getElementById("particles");
+            for (let i = 0; i < 18; i++) {
+                const p = document.createElement("div");
+                p.className = "particle";
+                const size = Math.random() * 4 + 2;
+                p.style.cssText = `width:${size}px;height:${size}px;left:${Math.random() * 100}%;animation-duration:${Math.random() * 18 + 14}s;animation-delay:${Math.random() * -20}s;opacity:${Math.random() * 0.5 + 0.2}`;
+                container.appendChild(p);
+            }
+
+            // ── Toggle mostrar/ocultar contraseña ─────────────────────────────
+            const togglePw = document.getElementById("togglePw");
+            const pwInput = document.getElementById("password");
+            const eyeIcon = document.getElementById("eyeIcon");
+            togglePw.addEventListener("click", () => {
+                const isText = pwInput.type === "text";
+                pwInput.type = isText ? "password" : "text";
+                eyeIcon.innerHTML = isText
+                    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                    : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            });
+
+            // ── Elementos del formulario ──────────────────────────────────────
+            const form = document.getElementById("loginForm");
+            const btn = document.getElementById("loginBtn");
+            const btnText = document.getElementById("loginBtnText");
+            const spinner = document.getElementById("loginSpinner");
+            const arrow = document.getElementById("loginArrow");
+            const errorBox = document.getElementById("loginError");
+            const errorMsg = document.getElementById("loginErrorMsg");
+            const dniInput = document.getElementById("usuario");
+
+            function showError(msg) {
+                errorMsg.textContent = msg;
+                errorBox.classList.add("visible");
+            }
+            function hideError() {
+                errorBox.classList.remove("visible");
+            }
+            function setLoading(on, labelText) {
+                btn.disabled = on;
+                spinner.style.display = on ? "block" : "none";
+                arrow.style.display = on ? "none" : "block";
+                btnText.textContent =
+                    labelText ??
+                    (on ? "Verificando..." : "Ingresar al sistema");
+            }
+
+            // ── Temporizador de bloqueo ───────────────────────────────────────
+            let countdownTimer = null;
+            function startCountdown(ms) {
+                clearInterval(countdownTimer);
+                setLoading(true, `Bloqueado — espera ${Math.ceil(ms / 1000)}s`);
+                const end = Date.now() + ms;
+                countdownTimer = setInterval(() => {
+                    const rem = end - Date.now();
+                    if (rem <= 0) {
+                        clearInterval(countdownTimer);
+                        setLoading(false);
+                        hideError();
+                        dniInput.focus();
+                    } else {
+                        setLoading(
+                            true,
+                            `Bloqueado — espera ${Math.ceil(rem / 1000)}s`,
+                        );
+                    }
+                }, 500);
+            }
+
+            // Si ya estaba bloqueado al cargar la página
+            {
+                const st = JSON.parse(
+                    localStorage.getItem("pt_rl") || '{"blockedUntil":0}',
+                );
+                const rem = st.blockedUntil - Date.now();
+                if (rem > 0) {
+                    showError("Demasiados intentos fallidos.");
+                    startCountdown(rem);
+                }
+            }
+
+            // ── Envío del formulario ──────────────────────────────────────────
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                hideError();
+
+                const dni = dniInput.value.trim();
+                const password = pwInput.value;
+
+                if (!dni) {
+                    showError("Ingresa tu número de DNI.");
+                    dniInput.focus();
+                    return;
+                }
+                if (!/^\d{8}$/.test(dni)) {
+                    showError(
+                        "El DNI debe tener exactamente 8 dígitos numéricos.",
+                    );
+                    dniInput.focus();
+                    return;
+                }
+                if (!password) {
+                    showError("Ingresa tu contraseña.");
+                    pwInput.focus();
+                    return;
+                }
+
+                setLoading(true);
+
+                try {
+                    const result = await doLogin(dni, password);
+                    if (result.ok) {
+                        window.location.href = "/";
+                    } else {
+                        setLoading(false);
+                        showError(
+                            result.error ??
+                                "Credenciales incorrectas o sin acceso autorizado.",
+                        );
+                        if (result.blockedMs > 0)
+                            startCountdown(result.blockedMs);
+                    }
+                } catch (err) {
+                    setLoading(false);
+                    showError(
+                        "Error de conexión. Verifica tu red e intenta de nuevo.",
+                    );
+                }
+            });
+
+            dniInput.addEventListener("input", hideError);
+            pwInput.addEventListener("input", hideError);
+        </script>
+    </body>
+</html>
