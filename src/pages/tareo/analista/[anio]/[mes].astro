@@ -35,18 +35,6 @@ const mesLabel = `${MESES[mesNum]} ${anioNum}`;
         </div>
     </div>
 
-    <!-- Guardar el periodo seleccionado en el contexto global -->
-    <script define:vars={{ anioNum, mesNum }}>
-        try {
-            sessionStorage.setItem(
-                "pt_period",
-                JSON.stringify({ anio: anioNum, mes: mesNum }),
-            );
-        } catch (e) {
-            /* no-op */
-        }
-    </script>
-
     <TareoAnalistaWrapper
         anio={anioNum}
         mes={mesNum}

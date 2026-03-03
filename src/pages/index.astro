@@ -4,6 +4,8 @@ import DashboardStats from "../components/tareo/DashboardStats";
 import DashboardRecentTareos from "../components/tareo/DashboardRecentTareos";
 import { MESES } from "../lib/supabase";
 
+// Se inicializa con valores por defecto del servidor,
+// pero en React (DashboardStats client:load) se hidratará con la info del Storage si existe.
 const anioActual = new Date().getFullYear();
 const mesActual = new Date().getMonth() + 1;
 ---
@@ -13,7 +15,7 @@ const mesActual = new Date().getMonth() + 1;
   <div class="page-header">
     <div class="page-header__text">
       <h2>Bienvenido al Sistema de Tareo</h2>
-      <p>
+      <p id="dashboard-periodo-texto">
         Planilla laboral — PAUSER DISTRIBUCIONES S.A.C. | {MESES[mesActual]}
         {anioActual}
       </p>
@@ -137,14 +139,46 @@ const mesActual = new Date().getMonth() + 1;
         var pos = (user.position || "").toUpperCase();
         var btn = document.getElementById("btn-dashboard-tareo");
 
+        // Revisar si hay un periodo global en sessionStorage
+        var pAnio = new Date().getFullYear();
+        var pMes = new Date().getMonth() + 1;
+        var rawPeriodo = window.sessionStorage.getItem("pt_periodo");
+        if (rawPeriodo) {
+          try {
+            var pe = JSON.parse(rawPeriodo);
+            pAnio = pe.anio || pAnio;
+            pMes = pe.mes || pMes;
+          } catch (e) {}
+        }
+
+        // Actualizar el texto del periodo en base al sessionStorage
+        var mesesArray = [
+          "",
+          "Enero",
+          "Febrero",
+          "Marzo",
+          "Abril",
+          "Mayo",
+          "Junio",
+          "Julio",
+          "Agosto",
+          "Septiembre",
+          "Octubre",
+          "Noviembre",
+          "Diciembre",
+        ];
+        var textoEl = document.getElementById("dashboard-periodo-texto");
+        if (textoEl) {
+          textoEl.innerHTML =
+            "Planilla laboral &mdash; PAUSER DISTRIBUCIONES S.A.C. | " +
+            mesesArray[pMes] +
+            " " +
+            pAnio;
+        }
+
         // Mostrar el botón solo si el cargo incluye "JEFE DE GENTE Y GESTIÓN"
         if (btn && pos.includes("JEFE DE GENTE Y GESTIÓN")) {
-          var d = new Date();
-          btn.href =
-            "/tareo/maestro?anio=" +
-            d.getFullYear() +
-            "&mes=" +
-            (d.getMonth() + 1);
+          btn.href = "/tareo/maestro";
           btn.style.display = "inline-flex";
         }
       } catch (e) {}

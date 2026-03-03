@@ -15,7 +15,46 @@ import {
 } from "../../lib/formulas";
 import type { TareoEmployeeConfig } from "../../lib/empleados";
 
-export default function DashboardStats({ anio, mes }: { anio: number; mes: number }) {
+export default function DashboardStats({ anio: pAnio, mes: pMes }: { anio: number; mes: number }) {
+    const isClient = typeof window !== "undefined";
+
+    const [anio, setAnio] = useState(() => {
+        if (isClient) {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try { return JSON.parse(raw).anio; } catch (e) { }
+            }
+        }
+        return pAnio;
+    });
+
+    const [mes, setMes] = useState(() => {
+        if (isClient) {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try { return JSON.parse(raw).mes; } catch (e) { }
+            }
+        }
+        return pMes;
+    });
+
+    // Escuchar cambios de sessionStorage
+    useEffect(() => {
+        if (!isClient) return;
+        const onStorageChange = () => {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    const pe = JSON.parse(raw);
+                    if (pe.anio !== anio) setAnio(pe.anio);
+                    if (pe.mes !== mes) setMes(pe.mes);
+                } catch (e) { }
+            }
+        };
+        const interval = setInterval(onStorageChange, 500);
+        return () => clearInterval(interval);
+    }, [anio, mes, isClient]);
+
     const [loaded, setLoaded] = useState(false);
     const [stats, setStats] = useState({
         totalEmpleados: 0,

@@ -35,30 +35,54 @@ export default function TareoMaestroWrapper() {
     const searchParams = isClient ? new URLSearchParams(window.location.search) : null;
 
     const [anio, setAnio] = useState(() => {
-        if (searchParams?.get("anio")) return parseInt(searchParams.get("anio")!);
-        try {
-            const stored = JSON.parse(sessionStorage.getItem("pt_period") ?? "{}");
-            if (stored.anio) return stored.anio as number;
-        } catch { /* no-op */ }
-        return new Date().getFullYear();
-    });
-    const [mes, setMes] = useState(() => {
-        if (searchParams?.get("mes")) return parseInt(searchParams.get("mes")!);
-        try {
-            const stored = JSON.parse(sessionStorage.getItem("pt_period") ?? "{}");
-            if (stored.mes) return stored.mes as number;
-        } catch { /* no-op */ }
-        return new Date().getMonth() + 1;
+        if (isClient) {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    return JSON.parse(raw).anio;
+                } catch (e) { }
+            }
+        }
+        return searchParams?.get("anio") ? parseInt(searchParams.get("anio")!) : new Date().getFullYear();
     });
 
-    // Sync URL and persist to global period context
+    const [mes, setMes] = useState(() => {
+        if (isClient) {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    return JSON.parse(raw).mes;
+                } catch (e) { }
+            }
+        }
+        return searchParams?.get("mes") ? parseInt(searchParams.get("mes")!) : new Date().getMonth() + 1;
+    });
+
+    // Escuchar cambios de sessionStorage (del global selector) para actualizar vista si estamos en la ruta correcta
+    useEffect(() => {
+        if (!isClient) return;
+        const onStorageChange = () => {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    const pe = JSON.parse(raw);
+                    if (pe.anio !== anio) setAnio(pe.anio);
+                    if (pe.mes !== mes) setMes(pe.mes);
+                } catch (e) { }
+            }
+        };
+        // Polling para detectar cambios hechos por Layout (porque storage event no dispara en la misma tab)
+        const interval = setInterval(onStorageChange, 500);
+        return () => clearInterval(interval);
+    }, [anio, mes, isClient]);
+
+    // Update URL when changed so refreshing keeps the month
     useEffect(() => {
         if (!isClient) return;
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set("anio", String(anio));
         currentUrl.searchParams.set("mes", String(mes));
         window.history.replaceState({}, "", currentUrl.toString());
-        try { sessionStorage.setItem("pt_period", JSON.stringify({ anio, mes })); } catch { /* no-op */ }
     }, [anio, mes, isClient]);
 
     const mesLabel = `${MESES[mes]} ${anio}`;
@@ -125,26 +149,6 @@ export default function TareoMaestroWrapper() {
                 </p>
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <select
-                    className="form-input"
-                    style={{ padding: "7px 12px", width: "100px" }}
-                    value={anio}
-                    onChange={(e) => setAnio(Number(e.target.value))}
-                >
-                    {ANIOS.map((a) => (
-                        <option key={a} value={a}>{a}</option>
-                    ))}
-                </select>
-                <select
-                    className="form-input"
-                    style={{ padding: "7px 12px", width: "140px" }}
-                    value={mes}
-                    onChange={(e) => setMes(Number(e.target.value))}
-                >
-                    {MESES_LIST.map((m) => (
-                        <option key={m} value={m}>{MESES[m]}</option>
-                    ))}
-                </select>
                 <a href="/tareo/jefe" className="btn btn--ghost">
                     ← Volver a TAREO/SEDE
                 </a>

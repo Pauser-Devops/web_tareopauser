@@ -31,11 +31,30 @@ export default function TareoAnalistaWrapper({ anio, mes, mesLabel, tareoAnalist
 
     const finalId = tareoAnalistaId || (searchParams?.get("id") ?? undefined);
 
-    // Si es vista del Jefe (finalId existe), tomar anio/mes de URL o default
     const currentAnio = new Date().getFullYear();
     const currentMes = new Date().getMonth() + 1;
-    const finalAnio = anio ?? (searchParams?.get("anio") ? parseInt(searchParams.get("anio")!) : currentAnio);
-    const finalMes = mes ?? (searchParams?.get("mes") ? parseInt(searchParams.get("mes")!) : currentMes);
+
+    // Leer periodo global de sessionStorage si existe
+    let sessionAnio = currentAnio;
+    let sessionMes = currentMes;
+    if (isClient) {
+        const raw = window.sessionStorage.getItem("pt_periodo");
+        if (raw) {
+            try {
+                const pe = JSON.parse(raw);
+                if (pe.anio) sessionAnio = pe.anio;
+                if (pe.mes) sessionMes = pe.mes;
+            } catch (e) { }
+        }
+    }
+
+    // Si es vista del Jefe (finalId existe), tomar anio/mes de URL o props. Si es analista, usar global.
+    const finalAnio = finalId
+        ? (anio ?? (searchParams?.get("anio") ? parseInt(searchParams.get("anio")!) : currentAnio))
+        : sessionAnio;
+    const finalMes = finalId
+        ? (mes ?? (searchParams?.get("mes") ? parseInt(searchParams.get("mes")!) : currentMes))
+        : sessionMes;
     const finalMesLabel = mesLabel ?? (isClient ? "Tareo seleccionado" : "");
     const [user, setUser] = useState<SessionUser | null>(null);
     const [error, setError] = useState<string | null>(null);

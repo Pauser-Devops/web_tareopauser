@@ -22,22 +22,44 @@ function estadoBadge(estado: string) {
 export default function TareoJefePanel({ anioInicial, mesInicial }: Props) {
     const [anio, setAnio] = useState(() => {
         if (typeof window !== "undefined") {
-            try {
-                const stored = JSON.parse(sessionStorage.getItem("pt_period") ?? "{}");
-                if (stored.anio) return stored.anio as number;
-            } catch { /* no-op */ }
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    return JSON.parse(raw).anio;
+                } catch (e) { }
+            }
         }
         return anioInicial;
     });
     const [mes, setMes] = useState(() => {
         if (typeof window !== "undefined") {
-            try {
-                const stored = JSON.parse(sessionStorage.getItem("pt_period") ?? "{}");
-                if (stored.mes) return stored.mes as number;
-            } catch { /* no-op */ }
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    return JSON.parse(raw).mes;
+                } catch (e) { }
+            }
         }
         return mesInicial;
     });
+
+    // Escuchar cambios del global selector
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const onStorageChange = () => {
+            const raw = window.sessionStorage.getItem("pt_periodo");
+            if (raw) {
+                try {
+                    const pe = JSON.parse(raw);
+                    if (pe.anio !== anio) setAnio(pe.anio);
+                    if (pe.mes !== mes) setMes(pe.mes);
+                } catch (e) { }
+            }
+        };
+        const interval = setInterval(onStorageChange, 500);
+        return () => clearInterval(interval);
+    }, [anio, mes]);
+
     const mesLabel = `${MESES[mes]} ${anio}`;
 
     const [tareos, setTareos] = useState<TareoAnalistaResumen[]>([]);
@@ -61,13 +83,6 @@ export default function TareoJefePanel({ anioInicial, mesInicial }: Props) {
 
     const ANIOS = [2024, 2025, 2026, 2027];
     const MESES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
-
-    // ── Guardar periodo seleccionado en sessionStorage (contexto global) ────────
-    useEffect(() => {
-        try {
-            sessionStorage.setItem("pt_period", JSON.stringify({ anio, mes }));
-        } catch { /* no-op */ }
-    }, [anio, mes]);
 
     // ── Carga principal ───────────────────────────────────────────────────────
     const cargar = useCallback(async () => {
@@ -180,17 +195,8 @@ export default function TareoJefePanel({ anioInicial, mesInicial }: Props) {
                     <p style={{ color: "var(--color-text-muted)", margin: 0, fontSize: "14px" }}>Supervisa y consolida los tareos de todos los analistas</p>
                 </div>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <select className="form-input" style={{ padding: "7px 12px", width: "100px" }}
-                        value={anio} onChange={(e) => setAnio(Number(e.target.value))}>
-                        {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
-                    </select>
-                    <select className="form-input" style={{ padding: "7px 12px", width: "140px" }}
-                        value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-                        {MESES_LIST.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
-                    </select>
-
                     {maestroConcretado && (
-                        <a href={`/tareo/maestro?anio=${anio}&mes=${mes}`}
+                        <a href={`/tareo/maestro`}
                             className="btn btn--primary" style={{ marginLeft: "8px" }}>
                             Ver Tareo Maestro →
                         </a>

@@ -55,39 +55,6 @@ const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
         <button class="tab-btn" data-tab="cambios">🟡 Cambios</button>
     </div>
 
-    <!-- Filtro año/mes (solo visible en tab Nuevos) -->
-    <div
-        id="filtro-mes-bar"
-        style="display:none;gap:8px;align-items:center;padding:10px 0 14px;border-bottom:1px solid var(--color-border);margin-bottom:14px;flex-wrap:wrap"
-    >
-        <span style="font-size:11px;color:var(--color-text-muted)"
-            >Filtrar nuevos:</span
-        >
-        <select
-            class="form-input"
-            id="sel-anio"
-            style="width:100px;padding:5px 8px;font-size:12px"></select>
-        <select
-            class="form-input"
-            id="sel-mes"
-            style="width:155px;padding:5px 8px;font-size:12px"
-        >
-            <option value="">Todos los meses</option>
-            <option value="01">Enero</option>
-            <option value="02">Febrero</option>
-            <option value="03">Marzo</option>
-            <option value="04">Abril</option>
-            <option value="05">Mayo</option>
-            <option value="06">Junio</option>
-            <option value="07">Julio</option>
-            <option value="08">Agosto</option>
-            <option value="09">Septiembre</option>
-            <option value="10">Octubre</option>
-            <option value="11">Noviembre</option>
-            <option value="12">Diciembre</option>
-        </select>
-    </div>
-
     <div style="margin-bottom:16px"></div>
 
     <!-- Filtros -->
@@ -338,22 +305,22 @@ const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
     const OK = SB_URL && SB_KEY && !SB_KEY.startsWith("REEMPLAZAR");
 
     const now = new Date();
-    const ANIO = now.getFullYear();
-    // Inicio del año actual
-    const FECHA_ANIO = new Date(ANIO, 0, 1).toISOString();
-    // Inicio del mes actual (para Cambios)
-    const FECHA_MES = new Date(ANIO, now.getMonth(), 1).toISOString();
-
-    // Poblar select de años dinámicamente
-    (function () {
-        const sel = document.getElementById("sel-anio");
-        for (let y = ANIO; y >= 2020; y--) {
-            sel.insertAdjacentHTML(
-                "beforeend",
-                `<option value="${y}"${y === ANIO ? " selected" : ""}>${y}</option>`,
-            );
+    // Leer periodo global de sessionStorage
+    let ANIO = now.getFullYear();
+    let MES = now.getMonth() + 1;
+    try {
+        const rawPeriodo = window.sessionStorage.getItem("pt_periodo");
+        if (rawPeriodo) {
+            const pe = JSON.parse(rawPeriodo);
+            if (pe.anio) ANIO = pe.anio;
+            if (pe.mes) MES = pe.mes;
         }
-    })();
+    } catch (e) {}
+
+    // Inicio del año seleccionado
+    const FECHA_ANIO = new Date(ANIO, 0, 1).toISOString();
+    // Inicio del mes seleccionado (para Cambios y Bajas)
+    const FECHA_MES = new Date(ANIO, MES - 1, 1).toISOString();
 
     // ── Estado ────────────────────────────────────────────────────────────────
     let ACTIVOS = []; // is_active=true + termination_date IS NULL
@@ -449,8 +416,12 @@ const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
             const filas = filtrar(BAJAS);
             tbody.innerHTML = "";
             if (!filas.length) {
+                const nombreMes = new Date(ANIO, MES - 1, 1).toLocaleDateString(
+                    "es-PE",
+                    { month: "long" },
+                );
                 tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--color-text-muted);font-size:13px">
-                Sin bajas registradas este mes (${now.toLocaleDateString("es-PE", { month: "long", year: "numeric" })})
+                Sin bajas registradas en ${nombreMes} ${ANIO}
             </td></tr>`;
             } else {
                 filas.forEach((e, i) => {
@@ -481,14 +452,13 @@ const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
         if (tabActiva === "sinconfig")
             filas = filas.filter((e) => !CONFIG_MAP.has(e.id));
         if (tabActiva === "nuevos") {
-            // Filtrar por año + mes seleccionados en los selectores
-            const anioSel = document.getElementById("sel-anio").value;
-            const mesSel = document.getElementById("sel-mes").value;
+            // Filtrar por año + mes seleccionado global
+            const mesStr = MES.toString().padStart(2, "0");
             filas = filas.filter((e) => {
                 if (!e.entry_date) return false;
                 const [y, m] = e.entry_date.split("-");
-                if (y !== anioSel) return false;
-                if (mesSel && m !== mesSel) return false;
+                if (y !== String(ANIO)) return false;
+                if (m !== mesStr) return false;
                 return true;
             });
         }
@@ -500,11 +470,8 @@ const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
         tbody.innerHTML = "";
         filas.forEach((e, i) => {
             const cfg = CONFIG_MAP.get(e.id);
-            const anioSel = (() => {
-                const s = document.getElementById("sel-anio");
-                return s ? s.value : String(ANIO);
-            })();
-            const esNuevo = e.entry_date && e.entry_date.startsWith(anioSel);
+            const esNuevo =
+                e.entry_date && e.entry_date.startsWith(String(ANIO));
             const esCambio = !esNuevo && e.updated_at >= FECHA_MES;
             const tr = document.createElement("tr");
 
@@ -704,18 +671,13 @@ const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
                 .forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
             tabActiva = btn.dataset.tab;
-            const mesBr = document.getElementById("filtro-mes-bar");
-            mesBr.style.display = tabActiva === "nuevos" ? "flex" : "none";
             document.getElementById("filtros-bar").style.display =
                 tabActiva === "bajas" ? "none" : "flex";
             render();
         });
     });
 
-    // ── Selectores año/mes ──────────────────────────────────────────────────────
-    ["sel-anio", "sel-mes"].forEach((id) => {
-        document.getElementById(id)?.addEventListener("change", render);
-    });
+    // ── Selectores año/mes removidos (se usa global) ──
 
     // ── Filtros ───────────────────────────────────────────────────────────────
     ["buscar", "filtro-cargo", "filtro-sede"].forEach((id) => {
