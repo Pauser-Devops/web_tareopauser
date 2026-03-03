@@ -18,7 +18,8 @@ export interface TareoLoginResult {
     nombre?: string;
     position?: string;
     sede?: string;
-    rol?: "admin" | "analista" | "visor";
+    business_unit?: string | null;
+    rol?: "jefe" | "analista";
 }
 
 /**

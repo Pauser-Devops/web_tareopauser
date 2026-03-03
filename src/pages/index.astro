@@ -1,19 +1,11 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import DashboardStats from "../components/tareo/DashboardStats";
+import DashboardRecentTareos from "../components/tareo/DashboardRecentTareos";
 import { MESES } from "../lib/supabase";
 
-// Demo data mientras se configura Supabase
-const anioActual = 2026;
-const mesActual = 1;
-
-const statsDemo = {
-  totalEmpleados: 498,
-  tareosMes: 498,
-  totalBruto: 1245830.5,
-  totalDescuentos: 198456.2,
-  totalNeto: 1047374.3,
-  essalud: 112124.75,
-};
+const anioActual = new Date().getFullYear();
+const mesActual = new Date().getMonth() + 1;
 ---
 
 <Layout title="Dashboard" breadcrumb="Inicio">
@@ -28,7 +20,8 @@ const statsDemo = {
     </div>
     <div class="page-header__actions">
       <a
-        href={`/tareo/${anioActual}/${String(mesActual).padStart(2, "0")}`}
+        id="btn-dashboard-tareo"
+        style="display: none;"
         class="btn btn--primary"
       >
         <svg
@@ -46,150 +39,7 @@ const statsDemo = {
     </div>
   </div>
 
-  <!-- Stats -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-card__label">Trabajadores Activos</div>
-      <div class="stat-card__value">{statsDemo.totalEmpleados}</div>
-      <div class="stat-card__sub">Planilla {MESES[mesActual]} {anioActual}</div>
-      <div class="stat-card__icon">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-card__label">Total Ingresos Brutos</div>
-      <div class="stat-card__value" style="font-size:20px">
-        S/ {
-          statsDemo.totalBruto.toLocaleString("es-PE", {
-            minimumFractionDigits: 2,
-          })
-        }
-      </div>
-      <div class="stat-card__sub">Afecto + No afecto</div>
-      <div
-        class="stat-card__icon"
-        style="background:rgba(52,211,153,0.1);color:var(--color-success)"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <line x1="12" y1="1" x2="12" y2="23"></line><path
-            d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-        </svg>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-card__label">Total Descuentos</div>
-      <div
-        class="stat-card__value"
-        style="font-size:20px;color:var(--color-danger)"
-      >
-        S/ {
-          statsDemo.totalDescuentos.toLocaleString("es-PE", {
-            minimumFractionDigits: 2,
-          })
-        }
-      </div>
-      <div class="stat-card__sub">AFP/ONP + Vida Ley + otros</div>
-      <div
-        class="stat-card__icon"
-        style="background:rgba(248,113,113,0.1);color:var(--color-danger)"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="8" y1="12" x2="16" y2="12"></line>
-        </svg>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-card__label">Neto a Pagar</div>
-      <div
-        class="stat-card__value"
-        style="font-size:20px;color:var(--color-primary)"
-      >
-        S/ {
-          statsDemo.totalNeto.toLocaleString("es-PE", {
-            minimumFractionDigits: 2,
-          })
-        }
-      </div>
-      <div class="stat-card__sub">Importe a depositar</div>
-      <div
-        class="stat-card__icon"
-        style="background:rgba(79,142,247,0.1);color:var(--color-primary)"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-          <line x1="1" y1="10" x2="23" y2="10"></line>
-        </svg>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-card__label">EsSalud (9%) Empleador</div>
-      <div
-        class="stat-card__value"
-        style="font-size:20px;color:var(--color-warning)"
-      >
-        S/ {
-          statsDemo.essalud.toLocaleString("es-PE", {
-            minimumFractionDigits: 2,
-          })
-        }
-      </div>
-      <div class="stat-card__sub">Aporte patronal</div>
-      <div
-        class="stat-card__icon"
-        style="background:rgba(251,191,36,0.1);color:var(--color-warning)"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-          <polyline points="22 4 12 14.01 9 11.01"></polyline>
-        </svg>
-      </div>
-    </div>
-  </div>
+  <DashboardStats client:load anio={anioActual} mes={mesActual} />
 
   <!-- Tareos recientes -->
   <div class="card">
@@ -201,50 +51,7 @@ const statsDemo = {
         style="font-size:12px;padding:5px 10px">Ver todos →</a
       >
     </div>
-    <div class="table-wrapper" style="border:none;border-radius:0">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Mes</th>
-            <th>Año</th>
-            <th>Trabajadores</th>
-            <th>Estado</th>
-            <th>Neto Total</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {
-            [1, 2].map((m) => (
-              <tr>
-                <td style="font-weight:600">{MESES[m]}</td>
-                <td class="text-muted">{anioActual}</td>
-                <td>{m === 1 ? 498 : "—"}</td>
-                <td>
-                  <span
-                    class={`badge ${m === 1 ? "badge--yellow" : "badge--gray"}`}
-                  >
-                    {m === 1 ? "Borrador" : "Pendiente"}
-                  </span>
-                </td>
-                <td class="cell-currency">
-                  {m === 1 ? "S/ 1,047,374.30" : "—"}
-                </td>
-                <td>
-                  <a
-                    href={`/tareo/${anioActual}/${String(m).padStart(2, "0")}`}
-                    class="btn btn--secondary"
-                    style="font-size:12px;padding:5px 12px"
-                  >
-                    {m === 1 ? "Editar" : "Crear"}
-                  </a>
-                </td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
+    <DashboardRecentTareos client:load anioActual={anioActual} />
   </div>
 
   <!-- Info SUNAT -->
@@ -319,3 +126,28 @@ const statsDemo = {
     </div>
   </div>
 </Layout>
+
+<script>
+  // @ts-nocheck
+  (function () {
+    var raw = window.sessionStorage.getItem("pt_auth");
+    if (raw) {
+      try {
+        var user = JSON.parse(raw);
+        var pos = (user.position || "").toUpperCase();
+        var btn = document.getElementById("btn-dashboard-tareo");
+
+        // Mostrar el botón solo si el cargo incluye "JEFE DE GENTE Y GESTIÓN"
+        if (btn && pos.includes("JEFE DE GENTE Y GESTIÓN")) {
+          var d = new Date();
+          btn.href =
+            "/tareo/maestro?anio=" +
+            d.getFullYear() +
+            "&mes=" +
+            (d.getMonth() + 1);
+          btn.style.display = "inline-flex";
+        }
+      } catch (e) {}
+    }
+  })();
+</script>

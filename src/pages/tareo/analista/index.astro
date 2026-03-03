@@ -1,0 +1,165 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import { MESES } from "../../../lib/supabase";
+
+const anios = [2024, 2025, 2026];
+const anioParam = Astro.url.searchParams.get("anio");
+const anioActual = anioParam ? parseInt(anioParam) : new Date().getFullYear();
+
+// Pre-calcular los datos de cada mes en el frontmatter.
+// IMPORTANTE: NO hacer comparaciones con < dentro del template Astro
+// porque el parser lo confunde con apertura de tag JSX.
+const now = new Date();
+const mesActualHoy = now.getMonth() + 1;
+const anioHoy = now.getFullYear();
+
+const mesesData = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const esPasadoOActual =
+        anioActual < anioHoy || (anioActual === anioHoy && m <= mesActualHoy);
+    const url = esPasadoOActual
+        ? `/tareo/analista/${anioActual}/${String(m).padStart(2, "0")}`
+        : "#";
+    return { m, esPasadoOActual, url };
+});
+---
+
+<Layout title="Mi Tareo" breadcrumb="Mi Tareo">
+    <div class="page-header">
+        <div class="page-header__text">
+            <h2>Mi Tareo Personal</h2>
+            <p id="subtitleAnalista">
+                Gestiona el tareo mensual de tu sede y unidad de negocio
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <select
+                class="form-input"
+                id="sel-anio"
+                style="padding:7px 12px;width:120px"
+            >
+                {
+                    anios.map((a) => (
+                        <option value={String(a)} selected={a === anioActual}>
+                            {a}
+                        </option>
+                    ))
+                }
+            </select>
+        </div>
+    </div>
+
+    <!-- Info del usuario (se rellena por JS desde sessionStorage) -->
+    <div
+        id="userInfoBanner"
+        style="display:none;padding:10px 16px;margin-bottom:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;font-size:12px;gap:20px;flex-wrap:wrap"
+    >
+        <span
+            ><span style="color:var(--color-text-muted)">Analista:</span>
+            <strong id="bannerNombre">—</strong></span
+        >
+        <span
+            ><span style="color:var(--color-text-muted)">Sede:</span>
+            <strong id="bannerSede">—</strong></span
+        >
+        <span
+            ><span style="color:var(--color-text-muted)">Unidad:</span>
+            <strong id="bannerUnidad">—</strong></span
+        >
+    </div>
+
+    <!-- Grid de meses -->
+    <div
+        style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"
+    >
+        {
+            mesesData.map(({ m, esPasadoOActual, url }) => (
+                <a
+                    href={url}
+                    class="card mes-card"
+                    style={`text-decoration:none;display:block;transition:border-color 0.15s,opacity 0.15s;${esPasadoOActual ? "cursor:pointer" : "opacity:0.4;cursor:default;pointer-events:none"}`}
+                >
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                        <div style="font-size:16px;font-weight:700">
+                            {MESES[m]}
+                        </div>
+                        <span class="badge badge--gray" id={`mes-badge-${m}`}>
+                            Pendiente
+                        </span>
+                    </div>
+                    <div style="font-size:12px;color:var(--color-text-muted)">
+                        {anioActual}
+                    </div>
+                </a>
+            ))
+        }
+    </div>
+</Layout>
+
+<script>
+    // Guard de sesión y llenado del banner de info del usuario
+    const SESSION_KEY = "pt_auth";
+    const raw = window.sessionStorage.getItem(SESSION_KEY);
+    if (!raw) {
+        window.location.href = "/login";
+    }
+
+    let user: any = null;
+    try {
+        user = JSON.parse(raw!);
+    } catch {}
+
+    // Guard: solo analistas pueden ver esta página
+    if (!user || user.rol !== "analista") {
+        window.location.href = "/";
+    }
+
+    // Mostrar info del analista en el banner
+    const bannerNombre = document.getElementById("bannerNombre");
+    const bannerSede = document.getElementById("bannerSede");
+    const bannerUnidad = document.getElementById("bannerUnidad");
+    const banner = document.getElementById("userInfoBanner");
+
+    if (bannerNombre) bannerNombre.textContent = user?.nombre ?? "—";
+    if (bannerSede) bannerSede.textContent = user?.sede ?? "—";
+    if (bannerUnidad) bannerUnidad.textContent = user?.business_unit ?? "—";
+    if (banner) banner.style.display = "flex";
+
+    // Cargar estado real de tareos desde Supabase y actualizar badges
+    const sbUrl = document
+        .querySelector('meta[name="sb-url"]')
+        ?.getAttribute("content");
+    const sbKey = document
+        .querySelector('meta[name="sb-key"]')
+        ?.getAttribute("content");
+
+    if (sbUrl && sbKey && user?.id) {
+        const anioSel = Number(
+            (document.getElementById("sel-anio") as HTMLSelectElement | null)
+                ?.value ?? new Date().getFullYear(),
+        );
+
+        fetch(
+            `${sbUrl}/rest/v1/tareos_analista?analista_id=eq.${user.id}&anio=eq.${anioSel}&select=mes,estado`,
+            { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } },
+        )
+            .then((r) => r.json())
+            .then((data: { mes: number; estado: string }[]) => {
+                data.forEach(({ mes, estado }) => {
+                    const badge = document.getElementById(`mes-badge-${mes}`);
+                    if (badge) {
+                        badge.textContent =
+                            estado === "cerrado" ? "Cerrado" : "Borrador";
+                        badge.className = `badge ${estado === "cerrado" ? "badge--green" : "badge--yellow"}`;
+                    }
+                });
+            })
+            .catch(() => {});
+    }
+
+    // Selector de año
+    const sel = document.getElementById("sel-anio") as HTMLSelectElement | null;
+    sel?.addEventListener("change", () => {
+        window.location.href = `/tareo/analista?anio=${sel.value}`;
+    });
+</script>

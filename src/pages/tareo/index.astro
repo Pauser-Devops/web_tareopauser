@@ -4,10 +4,21 @@ import { MESES } from "../../lib/supabase";
 
 const anios = [2024, 2025, 2026];
 const anioParam = Astro.url.searchParams.get("anio");
-const anioActual = anioParam ? parseInt(anioParam) : 2026;
 
-// Genera lista de meses del año actual + histórico
-const meses = Array.from({ length: 12 }, (_, i) => i + 1);
+// Usar fecha real del sistema (no hardcodeado a 2026)
+const now = new Date();
+const anioHoy = now.getFullYear();
+const mesActualHoy = now.getMonth() + 1;
+
+const anioActual = anioParam ? parseInt(anioParam) : anioHoy;
+
+// Calcular si cada mes es pasado/actual o futuro — usando la fecha real
+const mesesData = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const esPasadoOActual =
+        anioActual < anioHoy || (anioActual === anioHoy && m <= mesActualHoy);
+    return { m, esPasadoOActual };
+});
 ---
 
 <Layout title="Planillas" breadcrumb="Lista de Tareos">
@@ -37,78 +48,143 @@ const meses = Array.from({ length: 12 }, (_, i) => i + 1);
         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"
     >
         {
-            meses.map((m) => {
-                const isCurrent = m === 1 && anioActual === 2026;
-                const isPast =
-                    anioActual < 2026 ||
-                    (anioActual === 2026 && (m === 12 || m === 11 || m === 10));
-                const estado = isCurrent
-                    ? "borrador"
-                    : isPast
-                      ? "cerrado"
-                      : "pendiente";
-                const url =
-                    isCurrent || isPast
-                        ? `/tareo/${anioActual}/${String(m).padStart(2, "0")}`
-                        : "#";
-                return (
-                    <a
-                        href={url}
-                        class="card"
-                        style={`text-decoration:none;display:block;transition:border-color 0.15s;${!isCurrent && !isPast ? "opacity:0.5;cursor:default;pointer-events:none" : "cursor:pointer"}`}
-                    >
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                            <div style="font-size:16px;font-weight:700">
-                                {MESES[m]}
-                            </div>
-                            <span
-                                class={`badge ${estado === "borrador" ? "badge--yellow" : estado === "cerrado" ? "badge--green" : "badge--gray"}`}
-                            >
-                                {estado === "borrador"
-                                    ? "Borrador"
-                                    : estado === "cerrado"
-                                      ? "Cerrado"
-                                      : "Pendiente"}
-                            </span>
+            mesesData.map(({ m, esPasadoOActual }) => (
+                <a
+                    href="#"
+                    data-anio={anioActual}
+                    data-mes={m}
+                    class="card tareo-card"
+                    style={`text-decoration:none;display:block;transition:border-color 0.15s;${!esPasadoOActual ? "opacity:0.4;cursor:default;pointer-events:none" : "cursor:pointer"}`}
+                >
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                        <div style="font-size:16px;font-weight:700">
+                            {MESES[m]}
                         </div>
-                        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:10px">
-                            {anioActual}
-                        </div>
-                        {isCurrent && (
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-                                <div>
-                                    <div style="color:var(--color-text-muted)">
-                                        Trabajadores
-                                    </div>
-                                    <div style="font-weight:700;font-size:18px">
-                                        498
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style="color:var(--color-text-muted)">
-                                        Neto
-                                    </div>
-                                    <div style="font-weight:700;font-size:13px;color:var(--color-primary)">
-                                        S/ 1,047,374
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {!isCurrent && isPast && (
-                            <div style="font-size:12px;color:var(--color-text-muted)">
-                                Ver histórico →
-                            </div>
-                        )}
-                    </a>
-                );
-            })
+                        <span class="badge badge--gray" id={`mes-badge-${m}`}>
+                            Pendiente
+                        </span>
+                    </div>
+                    <div style="font-size:12px;color:var(--color-text-muted)">
+                        {anioActual}
+                    </div>
+                </a>
+            ))
         }
     </div>
 </Layout>
 
 <script>
-    const sel = document.getElementById("sel-anio") as HTMLSelectElement | null;
+    // @ts-nocheck
+    // ── Selector de año ──────────────────────────────────────────────────────
+    const sel = document.getElementById("sel-anio");
     sel?.addEventListener("change", () => {
         window.location.href = `/tareo?anio=${sel.value}`;
     });
+
+    // ── Leer rol desde sesión ─────────────────────────────────────────────────
+    let rol = "analista";
+    const authRaw = window.sessionStorage.getItem("pt_auth");
+    let userId = null;
+    let userSede = null;
+    let userBunit = null;
+
+    if (authRaw) {
+        try {
+            const u = JSON.parse(authRaw);
+            rol = u.rol || "analista";
+            userId = u.id ?? null;
+            userSede = u.sede ?? null;
+            userBunit = u.business_unit ?? null;
+        } catch (e) {}
+    }
+
+    // ── Navegar al hacer click en tarjeta ─────────────────────────────────────
+    // Jefe  → /tareo/jefe       (tiene sus propios selectores de año/mes)
+    // Analista → /tareo/analista/{anio}/{mes} (ruta dinámica directa)
+    const cards = document.querySelectorAll(".tareo-card");
+    cards.forEach((c) => {
+        c.addEventListener("click", (e) => {
+            const anio = c.getAttribute("data-anio");
+            const mes = c.getAttribute("data-mes");
+            if (anio && mes) {
+                e.preventDefault();
+                if (rol === "jefe") {
+                    window.location.href = "/tareo/jefe";
+                } else {
+                    const mesPadded = String(mes).padStart(2, "0");
+                    window.location.href = `/tareo/analista/${anio}/${mesPadded}`;
+                }
+            }
+        });
+    });
+
+    // ── Cargar estados reales de tareos desde Supabase ────────────────────────
+    const sbUrl = document
+        .querySelector('meta[name="sb-url"]')
+        ?.getAttribute("content");
+    const sbKey = document
+        .querySelector('meta[name="sb-key"]')
+        ?.getAttribute("content");
+
+    const anioSel = Number(
+        document.getElementById("sel-anio")?.value ?? new Date().getFullYear(),
+    );
+
+    if (sbUrl && sbKey && !sbKey.startsWith("REEMPLAZAR")) {
+        if (rol === "jefe") {
+            // Jefe: obtener estado de todos los tareos maestros del año
+            fetch(
+                `${sbUrl}/rest/v1/tareo_maestro?anio=eq.${anioSel}&select=mes,estado`,
+                {
+                    headers: {
+                        apikey: sbKey,
+                        Authorization: `Bearer ${sbKey}`,
+                    },
+                },
+            )
+                .then((r) => r.json())
+                .then((data) => {
+                    data.forEach(({ mes, estado }) => {
+                        const badge = document.getElementById(
+                            `mes-badge-${mes}`,
+                        );
+                        if (badge) {
+                            if (estado === "concretado") {
+                                badge.textContent = "Concretado";
+                                badge.className = "badge badge--green";
+                            } else if (estado === "borrador") {
+                                badge.textContent = "En proceso";
+                                badge.className = "badge badge--yellow";
+                            }
+                        }
+                    });
+                })
+                .catch(() => {});
+        } else if (userId) {
+            // Analista: obtener estado de sus propios tareos
+            fetch(
+                `${sbUrl}/rest/v1/tareos_analista?analista_id=eq.${userId}&anio=eq.${anioSel}&select=mes,estado`,
+                {
+                    headers: {
+                        apikey: sbKey,
+                        Authorization: `Bearer ${sbKey}`,
+                    },
+                },
+            )
+                .then((r) => r.json())
+                .then((data) => {
+                    data.forEach(({ mes, estado }) => {
+                        const badge = document.getElementById(
+                            `mes-badge-${mes}`,
+                        );
+                        if (badge) {
+                            badge.textContent =
+                                estado === "cerrado" ? "Cerrado" : "Borrador";
+                            badge.className = `badge ${estado === "cerrado" ? "badge--green" : "badge--yellow"}`;
+                        }
+                    });
+                })
+                .catch(() => {});
+        }
+    }
 </script>

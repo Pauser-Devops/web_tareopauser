@@ -1,0 +1,12 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import TareoMaestroWrapper from "../../../components/tareo/TareoMaestroWrapper";
+
+// La lectura de año y mes ahora se hace dinámicamente en el cliente (React)
+// usando query parameters (?anio=...&mes=...) para evitar bugs de SSG.
+---
+
+<Layout title={`Tareo Maestro`} breadcrumb={`Tareo Maestro / Consolidado`}>
+    <!-- El wrapper renderiza la cabecera con selectores internamente -->
+    <TareoMaestroWrapper client:only="react" />
+</Layout>

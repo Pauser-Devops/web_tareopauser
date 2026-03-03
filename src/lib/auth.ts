@@ -69,7 +69,8 @@ export interface SessionUser {
     nombre: string;
     position: string;
     sede: string;
-    rol: "admin" | "analista" | "visor";
+    business_unit: string | null;
+    rol: "jefe" | "analista";
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -108,12 +109,25 @@ export async function login(
     }
 
     // 4. Login exitoso — guardar sesión sin contraseña
+    // Derivamos el rol desde el cargo (position) para no depender
+    // de que la RPC devuelva exactamente "jefe"/"analista".
+    const position = (result.position ?? "").toUpperCase();
+    const rolDerived: "jefe" | "analista" =
+        position.includes("JEFE") ? "jefe" : "analista";
+
+    // También aceptamos si la RPC ya devuelve el rol correcto
+    const rolFinal: "jefe" | "analista" =
+        result.rol === "jefe" || result.rol === "analista"
+            ? result.rol
+            : rolDerived;
+
     const sessionUser: SessionUser = {
         id: result.id!,
         nombre: result.nombre!,
         position: result.position!,
         sede: result.sede!,
-        rol: result.rol!,
+        business_unit: result.business_unit ?? null,
+        rol: rolFinal,
     };
 
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));

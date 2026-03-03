@@ -1,0 +1,44 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+import TareoAnalistaWrapper from "../../../../components/tareo/TareoAnalistaWrapper";
+import { MESES } from "../../../../lib/supabase";
+
+export function getStaticPaths() {
+    const paths = [];
+    for (const anio of [2024, 2025, 2026, 2027]) {
+        for (let mes = 1; mes <= 12; mes++) {
+            paths.push({
+                params: {
+                    anio: String(anio),
+                    mes: String(mes).padStart(2, "0"),
+                },
+            });
+        }
+    }
+    return paths;
+}
+
+const { anio, mes } = Astro.params;
+const anioNum = parseInt(anio!);
+const mesNum = parseInt(mes!);
+const mesLabel = `${MESES[mesNum]} ${anioNum}`;
+---
+
+<Layout title={`Mi Tareo — ${mesLabel}`} breadcrumb={`Mi Tareo / ${mesLabel}`}>
+    <div class="page-header">
+        <div class="page-header__text">
+            <h2>Tareo — {mesLabel}</h2>
+            <p>Gestiona el tareo de tu sede para el mes de {mesLabel}</p>
+        </div>
+        <div class="page-header__actions">
+            <a href="/tareo/analista" class="btn btn--ghost">← Volver</a>
+        </div>
+    </div>
+
+    <TareoAnalistaWrapper
+        anio={anioNum}
+        mes={mesNum}
+        mesLabel={mesLabel}
+        client:only="react"
+    />
+</Layout>

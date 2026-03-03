@@ -1,0 +1,27 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+import TareoAnalistaWrapper from "../../../../components/tareo/TareoAnalistaWrapper";
+
+// Ya no usamos getStaticPaths porque el ID viene por query param (?id=...)
+// El componente React (TareoAnalistaWrapper) se encargará de leer la URL
+---
+
+<Layout title="Detalle Tareo Analista" breadcrumb="TAREO/SEDE / Detalle">
+    <div class="page-header">
+        <div class="page-header__text">
+            <h2>Detalle del Tareo</h2>
+            <p id="subtitleDetalle">
+                Vista del tareo del analista (solo lectura)
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <!-- Usamos history.back() para volver al mes que estábamos viendo o un link fijo -->
+            <button onclick="window.history.back()" class="btn btn--ghost">
+                ← Volver al mantenedor
+            </button>
+        </div>
+    </div>
+
+    <!-- El ID, año y mes se leerán automáticamente desde window.location.search -->
+    <TareoAnalistaWrapper readonly={true} client:only="react" />
+</Layout>

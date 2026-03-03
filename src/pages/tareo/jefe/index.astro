@@ -1,0 +1,18 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import TareoJefeWrapper from "../../../components/tareo/TareoJefeWrapper";
+
+// Pasamos el mes y año actual como iniciales al componente de React.
+// El componente React manejará su propio estado para los selectores internamente.
+const anioActual = new Date().getFullYear();
+const mesActual = new Date().getMonth() + 1;
+---
+
+<Layout title="TAREO/SEDE" breadcrumb="Mantenedor TAREO / SEDE">
+    <!-- El wrapper ahora renderiza el panel que contiene sus propios selectores de Año/Mes -->
+    <TareoJefeWrapper
+        anioInicial={anioActual}
+        mesInicial={mesActual}
+        client:only="react"
+    />
+</Layout>
