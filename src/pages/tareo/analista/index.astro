@@ -134,9 +134,18 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
         ?.getAttribute("content");
 
     if (sbUrl && sbKey && user?.id) {
+        // Leer periodo global para determinar el año seleccionado inicial por defecto
+        let _storedAnio: number | null = null;
+        try {
+            const _sp = JSON.parse(sessionStorage.getItem("pt_period") || "{}");
+            if (_sp.anio) _storedAnio = _sp.anio;
+        } catch {}
+
         const anioSel = Number(
             (document.getElementById("sel-anio") as HTMLSelectElement | null)
-                ?.value ?? new Date().getFullYear(),
+                ?.value ??
+                _storedAnio ??
+                new Date().getFullYear(),
         );
 
         fetch(
@@ -157,9 +166,24 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
             .catch(() => {});
     }
 
-    // Selector de año
+    // Selector de anno con persistencia de periodo global
     const sel = document.getElementById("sel-anio") as HTMLSelectElement | null;
     sel?.addEventListener("change", () => {
+        // Guardar el año en el contexto global (mantener el mes previo)
+        try {
+            const prev = JSON.parse(
+                sessionStorage.getItem("pt_period") || "{}",
+            );
+            sessionStorage.setItem(
+                "pt_period",
+                JSON.stringify({
+                    anio: Number(sel.value),
+                    mes: prev.mes || new Date().getMonth() + 1,
+                }),
+            );
+        } catch {
+            /* no-op */
+        }
         window.location.href = `/tareo/analista?anio=${sel.value}`;
     });
 </script>

@@ -177,12 +177,17 @@ const currentPath = Astro.url.pathname;
 				};
 
 				if (nav) {
-					var d = new Date();
-					var anioMesParam =
-						"?anio=" +
-						d.getFullYear() +
-						"&mes=" +
-						(d.getMonth() + 1);
+					// Leer el periodo seleccionado global; si no existe, usar el mes actual
+					var _storedPeriod = {};
+					try {
+						_storedPeriod = JSON.parse(
+							sessionStorage.getItem("pt_period") || "{}",
+						);
+					} catch (e) {}
+					var _d = new Date();
+					var _anio = _storedPeriod.anio || _d.getFullYear();
+					var _mes = _storedPeriod.mes || _d.getMonth() + 1;
+					var anioMesParam = "?anio=" + _anio + "&mes=" + _mes;
 					if (user.rol === "jefe") {
 						nav.innerHTML =
 							nl("/", svgGrid, "Dashboard", null) +

@@ -34,16 +34,31 @@ export default function TareoMaestroWrapper() {
     const isClient = typeof window !== "undefined";
     const searchParams = isClient ? new URLSearchParams(window.location.search) : null;
 
-    const [anio, setAnio] = useState(() => searchParams?.get("anio") ? parseInt(searchParams.get("anio")!) : new Date().getFullYear());
-    const [mes, setMes] = useState(() => searchParams?.get("mes") ? parseInt(searchParams.get("mes")!) : new Date().getMonth() + 1);
+    const [anio, setAnio] = useState(() => {
+        if (searchParams?.get("anio")) return parseInt(searchParams.get("anio")!);
+        try {
+            const stored = JSON.parse(sessionStorage.getItem("pt_period") ?? "{}");
+            if (stored.anio) return stored.anio as number;
+        } catch { /* no-op */ }
+        return new Date().getFullYear();
+    });
+    const [mes, setMes] = useState(() => {
+        if (searchParams?.get("mes")) return parseInt(searchParams.get("mes")!);
+        try {
+            const stored = JSON.parse(sessionStorage.getItem("pt_period") ?? "{}");
+            if (stored.mes) return stored.mes as number;
+        } catch { /* no-op */ }
+        return new Date().getMonth() + 1;
+    });
 
-    // Update URL when changed so refreshing keeps the month
+    // Sync URL and persist to global period context
     useEffect(() => {
         if (!isClient) return;
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set("anio", String(anio));
         currentUrl.searchParams.set("mes", String(mes));
         window.history.replaceState({}, "", currentUrl.toString());
+        try { sessionStorage.setItem("pt_period", JSON.stringify({ anio, mes })); } catch { /* no-op */ }
     }, [anio, mes, isClient]);
 
     const mesLabel = `${MESES[mes]} ${anio}`;
