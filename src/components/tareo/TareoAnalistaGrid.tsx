@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     calcDiasTrab,
     calcTotalHoras,
@@ -24,6 +24,8 @@ import {
 import type { EmpleadoBase } from "../../lib/empleados";
 import type { TareoEmployeeConfig } from "../../lib/empleados";
 import { supabase } from "../../lib/supabase";
+import ImportadorHistoricoAvanzado from "./ImportadorHistoricoAvanzado";
+import { exportarPDF, exportarExcel, construirFilas, type FilaRaw } from "../../lib/exportUtils";
 
 // ─── Tipos locales ─────────────────────────────────────────────────────────────
 type EmpleadoFila = EmpleadoBase & {
@@ -56,8 +58,12 @@ function calcularFila(emp: EmpleadoFila) {
     const diasTrab = calcDiasTrab(d.dias_habiles, d.vac, d.lic_sin_h, d.susp, d.aus_sin_just);
     const totalHoras = calcTotalHoras(d.dias_habiles, d.descanso_lab, d.desc_med, d.vel, d.vac, d.lic_sin_h, d.susp, d.aus_sin_just, 0);
     const sueldoProp = calcSueldoProporcional(sueldoBase, diasTrab, 30);
-    const totalAfecto = round2(sueldoProp);
-    const totalNoAfecto = round2(d.movilidad);
+
+    // El Total Afecto incluye Sueldo Prop, Comisiones y Bono Productividad
+    const totalAfecto = round2(sueldoProp + (d.comision || 0) + (d.bono_productiv || 0));
+
+    // El Total No Afecto incluye Movilidad y Bono Alimentación
+    const totalNoAfecto = round2((d.movilidad || 0) + (d.bono_alimento || 0));
     const totalIngresos = calcTotalIngresos(totalAfecto, totalNoAfecto);
     const baseAfecta = totalAfecto;
     const afpOnp = calcAfpOnpSimple(baseAfecta, afp);
@@ -83,6 +89,9 @@ function detalleVacio(tareoAnalistaId: string, empleadoId: string): TareoAnalist
         susp: 0,
         aus_sin_just: 0,
         movilidad: 0,
+        comision: 0,
+        bono_productiv: 0,
+        bono_alimento: 0,
         ret_jud: 0,
     };
 }
@@ -109,6 +118,11 @@ export default function TareoAnalistaGrid({
     const [showConfirmCierre, setShowConfirmCierre] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [msgError, setMsgError] = useState<string | null>(null); const [msgOk, setMsgOk] = useState<string | null>(null);
+    // Autosave
+    const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved">("idle");
+    // Mejora 8: bloqueo si el periodo fue concretado por el Jefe
+    const [periodoConcreto, setPeriodoConcreto] = useState(false);
 
     // ── Carga inicial ──────────────────────────────────────────────────────────
     useEffect(() => {
@@ -172,6 +186,18 @@ export default function TareoAnalistaGrid({
             }));
 
             setEmpleados(filas);
+
+            // Mejora 8: verificar si el periodo fue concretado
+            if (!externalTareoId) {
+                const { data: maestro } = await supabase
+                    .from("tareo_maestro")
+                    .select("estado")
+                    .eq("anio", anio)
+                    .eq("mes", mes)
+                    .maybeSingle();
+                setPeriodoConcreto(maestro?.estado === "concretado");
+            }
+
             setLoaded(true);
         }
         cargar();
@@ -201,6 +227,14 @@ export default function TareoAnalistaGrid({
     }, [tareo?.id]);
 
     // ── Actualizar campo de detalle ────────────────────────────────────────────
+    const empleadosRef = useRef<EmpleadoFila[]>([]);
+    useEffect(() => { empleadosRef.current = empleados; }, [empleados]);
+
+    const tareoRef = useRef<TareoAnalista | null>(null);
+    useEffect(() => { tareoRef.current = tareo; }, [tareo]);
+
+    const esReadonlyRef = useRef(false);
+
     const updateDetalle = useCallback(
         (empId: string, field: keyof TareoAnalistaDetalle, val: number) => {
             setEmpleados((prev) =>
@@ -210,6 +244,20 @@ export default function TareoAnalistaGrid({
                         : e
                 )
             );
+            // Autosave con debounce 2s (solo si no es readonly)
+            if (!esReadonlyRef.current) {
+                setAutosaveStatus("pending");
+                if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+                autosaveTimer.current = setTimeout(async () => {
+                    const currentTareo = tareoRef.current;
+                    const currentEmpleados = empleadosRef.current;
+                    if (!currentTareo) return;
+                    const detalles = currentEmpleados.map((e) => e.detalle);
+                    await upsertDetallesLote(detalles);
+                    setAutosaveStatus("saved");
+                    setTimeout(() => setAutosaveStatus("idle"), 2000);
+                }, 2000);
+            }
         },
         []
     );
@@ -258,6 +306,48 @@ export default function TareoAnalistaGrid({
         setLevantando(false);
     }, [tareo, empleados]);
 
+    // ── Recargar después de importar ───────────────────────────────────────────
+    const handleImportComplete = async () => {
+        if (!tareo) return;
+        setMsgOk(null); setMsgError(null);
+        const detalles = await fetchDetallesAnalista(tareo.id);
+        const detalleMap = new Map(detalles.map((d) => [d.empleado_id, d]));
+        setEmpleados((prev) => prev.map(emp => ({
+            ...emp,
+            detalle: detalleMap.get(emp.id) ?? detalleVacio(tareo.id, emp.id)
+        })));
+        setMsgOk("Datos importados del Excel recargados exitosamente.");
+    };
+
+    // ── Exportar planilla ────────────────────────────────────────────
+    const handleExportar = async (formato: "pdf" | "excel") => {
+        const rawFilas: FilaRaw[] = filasFiltradas.map((emp) => ({
+            nombre: emp.full_name,
+            dni: emp.dni,
+            cargo: emp.position,
+            afpCodigo: emp.config?.afp_codigo ?? "ONP",
+            sueldoBase: emp.config?.sueldo_base ?? 0,
+            tieneVidaLey: emp.config?.vida_ley ?? false,
+            diasHabiles: emp.detalle.dias_habiles,
+            vac: emp.detalle.vac,
+            licSinH: emp.detalle.lic_sin_h,
+            susp: emp.detalle.susp,
+            ausSinJust: emp.detalle.aus_sin_just,
+            movilidad: emp.detalle.movilidad,
+            comision: emp.detalle.comision,
+            bonoProductiv: emp.detalle.bono_productiv,
+            bonoAlimento: emp.detalle.bono_alimento,
+            retJud: emp.detalle.ret_jud,
+        }));
+        const filasPlanilla = construirFilas(rawFilas);
+        const titulo = `Planilla ${sede}${businessUnit ? ` / ${businessUnit}` : ""}`;
+        if (formato === "pdf") {
+            await exportarPDF(filasPlanilla, mesLabel, titulo);
+        } else {
+            await exportarExcel(filasPlanilla, mesLabel, titulo);
+        }
+    };
+
     // ── Filtrar empleados ──────────────────────────────────────────────────────
     const filasFiltradas = empleados.filter((e) => {
         const q = buscar.toLowerCase();
@@ -291,7 +381,10 @@ export default function TareoAnalistaGrid({
     const obsLevantadas = tareo?.estado === "obs_levantadas";
     // en_revision: el analista puede editar para corregir
     // readonly prop viene de la vista del Jefe
-    const esReadonly = readonly || esCerrado || obsLevantadas;
+    // periodoConcreto: bloquea si el Jefe ya concretó el mes
+    const esReadonly = readonly || esCerrado || obsLevantadas || periodoConcreto;
+    // Mantener ref actualizado para el autosave timer (closure)
+    esReadonlyRef.current = esReadonly;
 
     const tabs: { key: VistaTab; label: string }[] = [
         { key: "dias", label: "Días Laborados" },
@@ -320,6 +413,17 @@ export default function TareoAnalistaGrid({
 
     return (
         <div>
+            {/* Mejora 8: Banner periodo concretado (para analista) */}
+            {periodoConcreto && !readonly && (
+                <div style={{ padding: "10px 16px", marginBottom: "14px", background: "rgba(79,142,247,0.08)", border: "1px solid rgba(79,142,247,0.3)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "10px", fontSize: "13px" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    <div>
+                        <span style={{ fontWeight: 700, color: "var(--color-primary)" }}>Periodo Concretado</span>
+                        <span style={{ color: "var(--color-text-muted)", marginLeft: "8px" }}>— El Jefe concretó este período. Los datos son de solo lectura.</span>
+                    </div>
+                </div>
+            )}
+
             {/* Banner estado tareo */}
             {esCerrado && (
                 <div style={{ padding: "10px 16px", marginBottom: "14px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "var(--color-success)" }}>
@@ -329,7 +433,7 @@ export default function TareoAnalistaGrid({
                 </div>
             )}
 
-            {/* Banner: En Revisión — el Jefe mandó observaciones */}
+            {/* Banner: En Revisión — el Jefe mandó observaciones (para el Analista) */}
             {enRevision && !readonly && (
                 <div style={{ padding: "14px 18px", marginBottom: "14px", background: "rgba(251,146,60,0.08)", border: "2px solid rgba(251,146,60,0.5)", borderRadius: "10px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
@@ -353,6 +457,19 @@ export default function TareoAnalistaGrid({
                     >
                         {levantando ? "Guardando..." : "✅ Levantar Observaciones"}
                     </button>
+                </div>
+            )}
+
+            {/* Mejora 6: Banner observaciones en vista readonly del Jefe */}
+            {readonly && tareo?.observaciones && (
+                <div style={{ padding: "14px 18px", marginBottom: "14px", background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.4)", borderRadius: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                        <span style={{ fontSize: "18px" }}>🔍</span>
+                        <span style={{ fontWeight: 700, fontSize: "13px", color: "#f97316" }}>Observaciones enviadas al analista</span>
+                    </div>
+                    <div style={{ padding: "10px 14px", background: "rgba(251,146,60,0.12)", borderRadius: "6px", borderLeft: "3px solid #f97316", fontSize: "13px", whiteSpace: "pre-wrap" }}>
+                        {tareo.observaciones}
+                    </div>
                 </div>
             )}
 
@@ -409,7 +526,35 @@ export default function TareoAnalistaGrid({
                     value={buscar}
                     onChange={(e) => setBuscar(e.target.value)}
                 />
+                {/* Indicador autosave */}
+                {autosaveStatus === "pending" && (
+                    <span style={{ fontSize: "12px", color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        ⏳ Guardando...
+                    </span>
+                )}
+                {autosaveStatus === "saved" && (
+                    <span style={{ fontSize: "12px", color: "var(--color-success)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        ✓ Guardado
+                    </span>
+                )}
                 <div style={{ display: "flex", gap: "6px", marginLeft: "auto" }}>
+                    {/* Botones exportar (siempre visibles) */}
+                    <button
+                        className="btn btn--ghost"
+                        style={{ fontSize: "12px" }}
+                        onClick={() => handleExportar("pdf")}
+                        title="Exportar planilla a PDF"
+                    >
+                        📄 PDF
+                    </button>
+                    <button
+                        className="btn btn--ghost"
+                        style={{ fontSize: "12px" }}
+                        onClick={() => handleExportar("excel")}
+                        title="Exportar planilla a Excel"
+                    >
+                        📊 Excel
+                    </button>
                     {!esReadonly && (
                         <button
                             className="btn btn--primary"
@@ -442,6 +587,14 @@ export default function TareoAnalistaGrid({
                     )}
                 </div>
             </div>
+
+            {/* Importador Avanzado (Solo si no es readonly y en estado editable) */}
+            {!esReadonly && tareo && tareo.estado !== "cerrado" && (
+                <ImportadorHistoricoAvanzado
+                    tareoAnalistaId={tareo.id}
+                    onImportComplete={handleImportComplete}
+                />
+            )}
 
             {/* Tabs */}
             <div style={{ display: "flex", gap: "4px", marginBottom: "14px", borderBottom: "1px solid var(--color-border)", paddingBottom: "1px" }}>
@@ -484,6 +637,9 @@ export default function TareoAnalistaGrid({
                             <col style={{ width: "88px" }} />
                             <col style={{ width: "88px" }} />
                             <col style={{ width: "88px" }} />
+                            <col style={{ width: "88px" }} />
+                            <col style={{ width: "88px" }} />
+                            <col style={{ width: "88px" }} />
                             <col style={{ width: "96px" }} />
                             <col style={{ width: "96px" }} />
                             <col style={{ width: "104px" }} />
@@ -521,7 +677,10 @@ export default function TareoAnalistaGrid({
                             {verColumnas === "ingresos" && <>
                                 <th className="th-num">Sueldo<br />Base</th>
                                 <th className="th-num">S/ Prop.</th>
-                                <th className="th-num">Movilidad</th>
+                                <th className="th-num">Comis.</th>
+                                <th className="th-num">Bono<br />Prod.</th>
+                                <th className="th-num">Bono<br />Alim.</th>
+                                <th className="th-num">Movil.</th>
                                 <th className="th-num">Total<br />Afecto</th>
                                 <th className="th-num">Total No<br />Afecto</th>
                                 <th className="th-num">Total<br />Ingresos</th>
@@ -610,7 +769,28 @@ export default function TareoAnalistaGrid({
                                     {verColumnas === "ingresos" && <>
                                         <td className="cell-currency">{c.sueldoBase.toFixed(2)}</td>
                                         <td className="cell-currency">{c.sueldoProp.toFixed(2)}</td>
-                                        <td className="cell-currency">
+                                        <td className="cell-num">
+                                            {esReadonly ? emp.detalle.comision.toFixed(2) : (
+                                                <input type="number" min={0} step={10} className="cell-input"
+                                                    value={emp.detalle.comision}
+                                                    onChange={(e) => updateDetalle(emp.id, "comision", +e.target.value)} />
+                                            )}
+                                        </td>
+                                        <td className="cell-num">
+                                            {esReadonly ? emp.detalle.bono_productiv.toFixed(2) : (
+                                                <input type="number" min={0} step={10} className="cell-input"
+                                                    value={emp.detalle.bono_productiv}
+                                                    onChange={(e) => updateDetalle(emp.id, "bono_productiv", +e.target.value)} />
+                                            )}
+                                        </td>
+                                        <td className="cell-num">
+                                            {esReadonly ? emp.detalle.bono_alimento.toFixed(2) : (
+                                                <input type="number" min={0} step={10} className="cell-input"
+                                                    value={emp.detalle.bono_alimento}
+                                                    onChange={(e) => updateDetalle(emp.id, "bono_alimento", +e.target.value)} />
+                                            )}
+                                        </td>
+                                        <td className="cell-num">
                                             {esReadonly ? emp.detalle.movilidad.toFixed(2) : (
                                                 <input type="number" min={0} step={10} className="cell-input"
                                                     value={emp.detalle.movilidad}

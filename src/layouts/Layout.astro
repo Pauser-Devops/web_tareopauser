@@ -25,6 +25,11 @@ const currentPath = Astro.url.pathname;
 			name="sb-key"
 			content={import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? ""}
 		/>
+		<script is:inline>
+			const theme = window.localStorage.getItem("pt_theme") || "dark";
+			if (theme === "light")
+				document.documentElement.classList.add("theme-light");
+		</script>
 	</head>
 	<body>
 		<div class="layout">
@@ -120,13 +125,72 @@ const currentPath = Astro.url.pathname;
 								id="global-anio"
 								style="background:transparent;border:none;color:var(--color-text);font-size:12px;font-weight:600;outline:none;cursor:pointer"
 							>
-								<option value="2024">2024</option><option
-									value="2025">2025</option
-								><option value="2026">2026</option><option
-									value="2027">2027</option
-								>
+								<!-- Opciones generadas dinámicamente por JS -->
 							</select>
 						</div>
+						<!-- Theme Toggle -->
+						<button
+							id="themeToggleBtn"
+							class="btn btn--ghost"
+							style="padding:6px; font-size:16px; margin-right:4px;"
+							title="Cambiar tema"
+						>
+							<svg
+								id="themeIconDark"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								width="16"
+								height="16"
+								><path
+									d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+								></path></svg
+							>
+							<svg
+								id="themeIconLight"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								width="16"
+								height="16"
+								style="display:none;"
+								><circle cx="12" cy="12" r="5"></circle><line
+									x1="12"
+									y1="1"
+									x2="12"
+									y2="3"></line><line
+									x1="12"
+									y1="21"
+									x2="12"
+									y2="23"></line><line
+									x1="4.22"
+									y1="4.22"
+									x2="5.64"
+									y2="5.64"></line><line
+									x1="18.36"
+									y1="18.36"
+									x2="19.78"
+									y2="19.78"></line><line
+									x1="1"
+									y1="12"
+									x2="3"
+									y2="12"></line><line
+									x1="21"
+									y1="12"
+									x2="23"
+									y2="12"></line><line
+									x1="4.22"
+									y1="19.78"
+									x2="5.64"
+									y2="18.36"></line><line
+									x1="18.36"
+									y1="5.64"
+									x2="19.78"
+									y2="4.22"></line></svg
+							>
+						</button>
 						<div class="topbar-user" id="topbarUser"></div>
 						<button
 							class="btn btn--ghost topbar-logout"
@@ -213,6 +277,8 @@ const currentPath = Astro.url.pathname;
 					'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
 				var svgGear =
 					'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+				var svgKey =
+					'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"/></svg>';
 
 				var nl = function (href, icon, label, badgeId, isSub) {
 					var badge = badgeId
@@ -318,7 +384,8 @@ const currentPath = Astro.url.pathname;
 								"Trabajadores",
 								"badge-trabajadores",
 							) +
-							nl("/afp", svgPct, "Tasas AFP", null);
+							nl("/afp", svgPct, "Tasas AFP", null) +
+							nl("/usuarios", svgKey, "Usuarios", null);
 					} else {
 						nav.innerHTML =
 							nl("/", svgGrid, "Dashboard", null) +
@@ -345,6 +412,43 @@ const currentPath = Astro.url.pathname;
 					logoutBtn.addEventListener("click", function () {
 						window.sessionStorage.removeItem(SESSION_KEY);
 						window.location.href = "/login";
+					});
+				}
+
+				// Lógica del modo oscuro/claro
+				var themeBtn = document.getElementById("themeToggleBtn");
+				var iconDark = document.getElementById("themeIconDark");
+				var iconLight = document.getElementById("themeIconLight");
+
+				function updateThemeUI() {
+					var isLight =
+						document.documentElement.classList.contains(
+							"theme-light",
+						);
+					if (isLight) {
+						if (iconDark) iconDark.style.display = "none";
+						if (iconLight) iconLight.style.display = "block";
+					} else {
+						if (iconDark) iconDark.style.display = "block";
+						if (iconLight) iconLight.style.display = "none";
+					}
+				}
+
+				if (themeBtn) {
+					updateThemeUI();
+					themeBtn.addEventListener("click", function () {
+						document.documentElement.classList.toggle(
+							"theme-light",
+						);
+						var isLight =
+							document.documentElement.classList.contains(
+								"theme-light",
+							);
+						window.localStorage.setItem(
+							"pt_theme",
+							isLight ? "light" : "dark",
+						);
+						updateThemeUI();
 					});
 				}
 			})();

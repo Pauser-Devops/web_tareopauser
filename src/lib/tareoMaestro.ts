@@ -32,6 +32,9 @@ export interface TareoMaestroDetalle {
     susp: number;
     aus_sin_just: number;
     movilidad: number;
+    comision: number;
+    bono_productiv: number;
+    bono_alimento: number;
     ret_jud: number;
     origen_analista_id: string | null;
     empleado?: EmpleadoBase;
@@ -282,6 +285,31 @@ export async function todosLosTareosCerrados(
     };
 }
 
+// ─── Reabrir tareo maestro ────────────────────────────────────────────────────
+
+/**
+ * Reabre un tareo maestro ya concretado, pasando su estado a "abierto".
+ * Esto permite volver a concretar el período si hubo correcciones.
+ */
+export async function reabrirTareoMaestro(
+    anio: number,
+    mes: number
+): Promise<{ ok: boolean; error?: string }> {
+    if (!supabase) return { ok: false, error: "Supabase no configurado." };
+
+    const { error } = await supabase
+        .from("tareo_maestro")
+        .update({ estado: "abierto", updated_at: new Date().toISOString() })
+        .eq("anio", anio)
+        .eq("mes", mes);
+
+    if (error) {
+        console.error("[tareoMaestro] reabrirTareoMaestro:", error.message);
+        return { ok: false, error: error.message };
+    }
+    return { ok: true };
+}
+
 // ─── Live Consolidation (Vista de todos los empleados) ────────────────────────
 
 export interface TareoFilaLive extends TareoMaestroDetalle {
@@ -345,6 +373,9 @@ export async function fetchTareoMaestroLive(
             susp: d?.susp ?? 0,
             aus_sin_just: d?.aus_sin_just ?? 0,
             movilidad: d?.movilidad ?? 0,
+            comision: d?.comision ?? 0,
+            bono_productiv: d?.bono_productiv ?? 0,
+            bono_alimento: d?.bono_alimento ?? 0,
             ret_jud: d?.ret_jud ?? 0,
             origen_analista_id: d?.tareo_analista_id ?? null,
             empleado: emp,

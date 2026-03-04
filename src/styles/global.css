@@ -15,6 +15,20 @@
     --color-text-muted: #8892a4;
 }
 
+html.theme-light {
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-surface-2: #f1f5f9;
+    --color-border: #e2e8f0;
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-text: #0f172a;
+    --color-text-muted: #64748b;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;

@@ -21,6 +21,7 @@ import {
     round2,
 } from "../../lib/formulas";
 import type { TareoEmployeeConfig } from "../../lib/empleados";
+import { exportarPDF, exportarExcel, construirFilas, type FilaRaw } from "../../lib/exportUtils";
 
 type SessionUser = {
     id: string;
@@ -86,7 +87,7 @@ export default function TareoMaestroWrapper() {
     }, [anio, mes, isClient]);
 
     const mesLabel = `${MESES[mes]} ${anio}`;
-    const ANIOS = [2024, 2025, 2026, 2027];
+    const ANIOS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i);
     const MESES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 
     const [authChecked, setAuthChecked] = useState(false);
@@ -113,9 +114,9 @@ export default function TareoMaestroWrapper() {
             const datos = await fetchTareoMaestroLive(anio, mes);
             setDetalles(datos);
 
-            // Cargar configs tareo para calcular sueldos
-            if (detalles.length > 0 && supabase) {
-                const ids = detalles.map((d) => d.empleado_id);
+            // Bug fix: usar `datos` (recién cargado) en lugar de `detalles` (state anterior, vacío)
+            if (datos.length > 0 && supabase) {
+                const ids = datos.map((d) => d.empleado_id);
                 const { data: configs } = await supabase
                     .from("tareo_employee_config")
                     .select("*")
@@ -187,8 +188,9 @@ export default function TareoMaestroWrapper() {
         const diasTrab = calcDiasTrab(d.dias_habiles, d.vac, d.lic_sin_h, d.susp, d.aus_sin_just);
         const totalHoras = calcTotalHoras(d.dias_habiles, d.descanso_lab, d.desc_med, d.vel, d.vac, d.lic_sin_h, d.susp, d.aus_sin_just, 0);
         const sueldoProp = calcSueldoProporcional(sueldoBase, diasTrab, 30);
-        const totalAfecto = round2(sueldoProp);
-        const totalNoAfecto = round2(d.movilidad);
+        // Bug fix: incluir comision y bono_productiv en afecto, bono_alimento en no afecto
+        const totalAfecto = round2(sueldoProp + (d.comision || 0) + (d.bono_productiv || 0));
+        const totalNoAfecto = round2((d.movilidad || 0) + (d.bono_alimento || 0));
         const totalIngresos = calcTotalIngresos(totalAfecto, totalNoAfecto);
         const afpOnp = calcAfpOnpSimple(totalAfecto, afp);
         const vidaLey = calcVidaLey(totalAfecto, tieneVidaLey);
@@ -218,6 +220,38 @@ export default function TareoMaestroWrapper() {
         { key: "descuentos", label: "Descuentos" },
         { key: "totales", label: "Totales" },
     ];
+
+    // Exportar planilla Maestro
+    const handleExportarMaestro = async (formato: "pdf" | "excel") => {
+        const rawFilas: FilaRaw[] = detallesFiltrados.map((d) => {
+            const config = configMap.get(d.empleado_id);
+            return {
+                nombre: d.empleado?.full_name ?? d.empleado_id,
+                dni: d.empleado?.dni ?? "",
+                cargo: d.empleado?.position ?? "",
+                afpCodigo: config?.afp_codigo ?? "ONP",
+                sueldoBase: config?.sueldo_base ?? 0,
+                tieneVidaLey: config?.vida_ley ?? false,
+                diasHabiles: d.dias_habiles,
+                vac: d.vac,
+                licSinH: d.lic_sin_h,
+                susp: d.susp,
+                ausSinJust: d.aus_sin_just,
+                movilidad: d.movilidad,
+                comision: d.comision,
+                bonoProductiv: d.bono_productiv,
+                bonoAlimento: d.bono_alimento,
+                retJud: d.ret_jud,
+            };
+        });
+        const filasPlanilla = construirFilas(rawFilas);
+        const titulo = "Tareo Maestro Consolidado";
+        if (formato === "pdf") {
+            await exportarPDF(filasPlanilla, mesLabel, titulo);
+        } else {
+            await exportarExcel(filasPlanilla, mesLabel, titulo);
+        }
+    };
 
     return (
         <div>
@@ -254,6 +288,24 @@ export default function TareoMaestroWrapper() {
                     value={buscar}
                     onChange={(e) => setBuscar(e.target.value)}
                 />
+                <div style={{ display: "flex", gap: "6px", marginLeft: "auto" }}>
+                    <button
+                        className="btn btn--ghost"
+                        style={{ fontSize: "12px" }}
+                        onClick={() => handleExportarMaestro("pdf")}
+                        title="Exportar planilla maestro a PDF"
+                    >
+                        📄 PDF
+                    </button>
+                    <button
+                        className="btn btn--ghost"
+                        style={{ fontSize: "12px" }}
+                        onClick={() => handleExportarMaestro("excel")}
+                        title="Exportar planilla maestro a Excel"
+                    >
+                        📊 Excel
+                    </button>
+                </div>
             </div>
 
             {/* Tabs */}

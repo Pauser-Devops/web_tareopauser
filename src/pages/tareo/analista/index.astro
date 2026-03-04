@@ -97,7 +97,7 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
 </Layout>
 
 <script>
-    // Guard de sesión y llenado del banner de info del usuario
+    // Guard de sesión y rol
     const SESSION_KEY = "pt_auth";
     const raw = window.sessionStorage.getItem(SESSION_KEY);
     if (!raw) {
@@ -110,8 +110,11 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
     } catch {}
 
     // Guard: solo analistas pueden ver esta página
-    if (!user || user.rol !== "analista") {
-        window.location.href = "/";
+    if (!user) {
+        window.location.href = "/login";
+    } else if (user.rol !== "analista") {
+        // El jefe tiene su propia página
+        window.location.href = "/tareo/jefe";
     }
 
     // Mostrar info del analista en el banner
@@ -124,6 +127,20 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
     if (bannerSede) bannerSede.textContent = user?.sede ?? "—";
     if (bannerUnidad) bannerUnidad.textContent = user?.business_unit ?? "—";
     if (banner) banner.style.display = "flex";
+
+    // Función de badge genérica
+    function aplicarBadge(badge: HTMLElement | null, estado: string) {
+        if (!badge) return;
+        const mapa: Record<string, { texto: string; cls: string }> = {
+            cerrado: { texto: "Cerrado", cls: "badge--green" },
+            en_revision: { texto: "En Revisión", cls: "badge--orange" },
+            obs_levantadas: { texto: "Obs. Levantadas", cls: "badge--blue" },
+            borrador: { texto: "Borrador", cls: "badge--yellow" },
+        };
+        const info = mapa[estado] ?? { texto: "Pendiente", cls: "badge--gray" };
+        badge.textContent = info.texto;
+        badge.className = `badge ${info.cls}`;
+    }
 
     // Cargar estado real de tareos desde Supabase y actualizar badges
     const sbUrl = document
@@ -145,14 +162,12 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
         )
             .then((r) => r.json())
             .then((data: { mes: number; estado: string }[]) => {
-                data.forEach(({ mes, estado }) => {
-                    const badge = document.getElementById(`mes-badge-${mes}`);
-                    if (badge) {
-                        badge.textContent =
-                            estado === "cerrado" ? "Cerrado" : "Borrador";
-                        badge.className = `badge ${estado === "cerrado" ? "badge--green" : "badge--yellow"}`;
-                    }
-                });
+                data.forEach(({ mes, estado }) =>
+                    aplicarBadge(
+                        document.getElementById(`mes-badge-${mes}`),
+                        estado,
+                    ),
+                );
             })
             .catch(() => {});
     }

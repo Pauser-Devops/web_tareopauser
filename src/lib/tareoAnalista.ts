@@ -37,6 +37,9 @@ export interface TareoAnalistaDetalle {
     susp: number;
     aus_sin_just: number;
     movilidad: number;
+    comision: number;
+    bono_productiv: number;
+    bono_alimento: number;
     ret_jud: number;
     updated_at?: string;
 }

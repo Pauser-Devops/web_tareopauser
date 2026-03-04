@@ -75,40 +75,47 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
 
 <script>
     // @ts-nocheck
-    // ── Selector de año ──────────────────────────────────────────────────────
+
+    // ── Guard de sesión ────────────────────────────────────────────────────────
+    const authRaw = window.sessionStorage.getItem("pt_auth");
+    if (!authRaw) {
+        window.location.href = "/login";
+    }
+
+    let user = null;
+    try {
+        user = JSON.parse(authRaw);
+    } catch (e) {}
+    if (!user) {
+        window.location.href = "/login";
+    }
+
+    const rol = user?.rol ?? "analista";
+    const userId = user?.id ?? null;
+
+    // ── Selector de año ────────────────────────────────────────────────────────
     const sel = document.getElementById("sel-anio");
     sel?.addEventListener("change", () => {
         window.location.href = `/tareo?anio=${sel.value}`;
     });
 
-    // ── Leer rol desde sesión ─────────────────────────────────────────────────
-    let rol = "analista";
-    const authRaw = window.sessionStorage.getItem("pt_auth");
-    let userId = null;
-    let userSede = null;
-    let userBunit = null;
-
-    if (authRaw) {
-        try {
-            const u = JSON.parse(authRaw);
-            rol = u.rol || "analista";
-            userId = u.id ?? null;
-            userSede = u.sede ?? null;
-            userBunit = u.business_unit ?? null;
-        } catch (e) {}
-    }
-
-    // ── Navegar al hacer click en tarjeta ─────────────────────────────────────
-    // Jefe  → /tareo/jefe       (tiene sus propios selectores de año/mes)
-    // Analista → /tareo/analista/{anio}/{mes} (ruta dinámica directa)
+    // ── Navegar al hacer click en tarjeta ──────────────────────────────────────
+    // JEFE: guardar el mes/año en pt_periodo antes de navegar, para que
+    //       TareoJefePanel lo recoja y muestre el mes correcto.
+    // ANALISTA: ir directamente a la ruta dinámica /tareo/analista/{anio}/{mes}
     const cards = document.querySelectorAll(".tareo-card");
     cards.forEach((c) => {
         c.addEventListener("click", (e) => {
-            const anio = c.getAttribute("data-anio");
-            const mes = c.getAttribute("data-mes");
+            const anio = parseInt(c.getAttribute("data-anio"));
+            const mes = parseInt(c.getAttribute("data-mes"));
             if (anio && mes) {
                 e.preventDefault();
                 if (rol === "jefe") {
+                    // Persistir periodo para que el panel del Jefe lo use
+                    window.sessionStorage.setItem(
+                        "pt_periodo",
+                        JSON.stringify({ anio, mes }),
+                    );
                     window.location.href = "/tareo/jefe";
                 } else {
                     const mesPadded = String(mes).padStart(2, "0");
@@ -118,21 +125,31 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
         });
     });
 
-    // ── Cargar estados reales de tareos desde Supabase ────────────────────────
+    // ── Cargar estados reales de tareos desde Supabase ─────────────────────────
     const sbUrl = document
         .querySelector('meta[name="sb-url"]')
         ?.getAttribute("content");
     const sbKey = document
         .querySelector('meta[name="sb-key"]')
         ?.getAttribute("content");
+    const anioSel = Number(sel?.value ?? new Date().getFullYear());
 
-    const anioSel = Number(
-        document.getElementById("sel-anio")?.value ?? new Date().getFullYear(),
-    );
+    function aplicarBadge(badge, estado) {
+        if (!badge) return;
+        const mapa = {
+            cerrado: { texto: "Cerrado", cls: "badge--green" },
+            en_revision: { texto: "En Revisión", cls: "badge--orange" },
+            obs_levantadas: { texto: "Obs. Levantadas", cls: "badge--blue" },
+            borrador: { texto: "Borrador", cls: "badge--yellow" },
+            concretado: { texto: "Concretado", cls: "badge--green" },
+        };
+        const info = mapa[estado] ?? { texto: "Pendiente", cls: "badge--gray" };
+        badge.textContent = info.texto;
+        badge.className = `badge ${info.cls}`;
+    }
 
     if (sbUrl && sbKey && !sbKey.startsWith("REEMPLAZAR")) {
         if (rol === "jefe") {
-            // Jefe: obtener estado de todos los tareos maestros del año
             fetch(
                 `${sbUrl}/rest/v1/tareo_maestro?anio=eq.${anioSel}&select=mes,estado`,
                 {
@@ -143,25 +160,16 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
                 },
             )
                 .then((r) => r.json())
-                .then((data) => {
-                    data.forEach(({ mes, estado }) => {
-                        const badge = document.getElementById(
-                            `mes-badge-${mes}`,
-                        );
-                        if (badge) {
-                            if (estado === "concretado") {
-                                badge.textContent = "Concretado";
-                                badge.className = "badge badge--green";
-                            } else if (estado === "borrador") {
-                                badge.textContent = "En proceso";
-                                badge.className = "badge badge--yellow";
-                            }
-                        }
-                    });
-                })
+                .then((data) =>
+                    data.forEach(({ mes, estado }) =>
+                        aplicarBadge(
+                            document.getElementById(`mes-badge-${mes}`),
+                            estado,
+                        ),
+                    ),
+                )
                 .catch(() => {});
         } else if (userId) {
-            // Analista: obtener estado de sus propios tareos
             fetch(
                 `${sbUrl}/rest/v1/tareos_analista?analista_id=eq.${userId}&anio=eq.${anioSel}&select=mes,estado`,
                 {
@@ -172,18 +180,14 @@ const mesesData = Array.from({ length: 12 }, (_, i) => {
                 },
             )
                 .then((r) => r.json())
-                .then((data) => {
-                    data.forEach(({ mes, estado }) => {
-                        const badge = document.getElementById(
-                            `mes-badge-${mes}`,
-                        );
-                        if (badge) {
-                            badge.textContent =
-                                estado === "cerrado" ? "Cerrado" : "Borrador";
-                            badge.className = `badge ${estado === "cerrado" ? "badge--green" : "badge--yellow"}`;
-                        }
-                    });
-                })
+                .then((data) =>
+                    data.forEach(({ mes, estado }) =>
+                        aplicarBadge(
+                            document.getElementById(`mes-badge-${mes}`),
+                            estado,
+                        ),
+                    ),
+                )
                 .catch(() => {});
         }
     }

@@ -81,7 +81,7 @@ export default function TareoJefePanel({ anioInicial, mesInicial }: Props) {
     const [enviandoRevision, setEnviandoRevision] = useState(false);
     const [revisionError, setRevisionError] = useState<string | null>(null);
 
-    const ANIOS = [2024, 2025, 2026, 2027];
+    const ANIOS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i);
     const MESES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 
     // ── Carga principal ───────────────────────────────────────────────────────

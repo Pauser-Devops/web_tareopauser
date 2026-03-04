@@ -1,0 +1,393 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="Gestión de Usuarios" breadcrumb="Usuarios">
+    <div id="usuariosPage">
+        <!-- Header -->
+        <div
+            class="page-header"
+            style="margin-bottom:24px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px;"
+        >
+            <div>
+                <h2 style="font-size:24px; font-weight:700; margin:0 0 4px 0;">
+                    Gestión de Usuarios
+                </h2>
+                <p
+                    style="color:var(--color-text-muted); margin:0; font-size:14px;"
+                >
+                    Asigna o cambia contraseñas de acceso al sistema para
+                    cualquier empleado.
+                </p>
+            </div>
+        </div>
+
+        <!-- Buscador -->
+        <div style="margin-bottom:16px;">
+            <input
+                type="text"
+                id="buscarUsuario"
+                placeholder="🔍 Buscar por nombre o DNI..."
+                class="form-input"
+                style="width:320px;"
+            />
+        </div>
+
+        <!-- Tabla -->
+        <div class="table-wrapper">
+            <table class="data-table" id="usuariosTable">
+                <thead>
+                    <tr>
+                        <th>N°</th>
+                        <th>DNI</th>
+                        <th>Apellidos y Nombres</th>
+                        <th>Cargo</th>
+                        <th style="text-align:center;">Acceso al Sistema</th>
+                        <th style="text-align:center;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="usuariosTbody">
+                    <tr>
+                        <td
+                            colspan="6"
+                            style="text-align:center; color:var(--color-text-muted); padding:24px;"
+                        >
+                            Cargando empleados...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal asignar contraseña -->
+    <div
+        id="modalPassword"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;"
+    >
+        <div class="card" style="width:420px; padding:28px;">
+            <h3 style="margin:0 0 4px 0; font-size:18px;" id="modalTitle">
+                Asignar Contraseña
+            </h3>
+            <p
+                style="font-size:13px; color:var(--color-text-muted); margin:0 0 20px 0;"
+                id="modalSubtitle"
+            >
+                —
+            </p>
+
+            <div style="margin-bottom:16px;">
+                <label
+                    style="font-size:12px; font-weight:600; color:var(--color-text-muted); display:block; margin-bottom:6px;"
+                >
+                    Nueva contraseña
+                </label>
+                <div style="display:flex; gap:8px;">
+                    <input
+                        type="text"
+                        id="pwdInput"
+                        class="form-input"
+                        style="flex:1;"
+                        placeholder="Escribe o genera una contraseña..."
+                        autocomplete="off"
+                    />
+                    <button
+                        class="btn btn--ghost"
+                        id="btnGenerar"
+                        style="font-size:12px; white-space:nowrap;"
+                    >
+                        🎲 Generar
+                    </button>
+                </div>
+                <p
+                    style="font-size:11px; color:var(--color-text-muted); margin:6px 0 0 0;"
+                >
+                    La contraseña se guardará en texto plano. El empleado la
+                    usará junto a su DNI para ingresar.
+                </p>
+            </div>
+
+            <div
+                id="modalMsg"
+                style="display:none; font-size:12px; padding:8px 12px; border-radius:6px; margin-bottom:12px;"
+            >
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button
+                    class="btn btn--ghost"
+                    id="btnCancelarModal"
+                    style="font-size:12px;">Cancelar</button
+                >
+                <button
+                    class="btn btn--primary"
+                    id="btnGuardarPwd"
+                    style="font-size:12px;">Guardar</button
+                >
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // @ts-nocheck
+        (async function () {
+            // ── Guard de sesión y rol ──────────────────────────────────────────
+            var raw = window.sessionStorage.getItem("pt_auth");
+            if (!raw) {
+                window.location.href = "/login";
+                return;
+            }
+            var user;
+            try {
+                user = JSON.parse(raw);
+            } catch {
+                window.location.href = "/login";
+                return;
+            }
+            if (user.rol !== "jefe") {
+                window.location.href = "/";
+                return;
+            }
+
+            // ── Supabase ───────────────────────────────────────────────────────
+            var sbUrl = document.querySelector('meta[name="sb-url"]')?.content;
+            var sbKey = document.querySelector('meta[name="sb-key"]')?.content;
+            if (!sbUrl || !sbKey || sbKey.startsWith("REEMPLAZAR")) {
+                mostrarError("Supabase no configurado.");
+                return;
+            }
+
+            var headers = {
+                apikey: sbKey,
+                Authorization: "Bearer " + sbKey,
+                "Content-Type": "application/json",
+            };
+
+            // ── Cargar empleados ──────────────────────────────────────────────
+            var empleados = [];
+            try {
+                var res = await fetch(
+                    sbUrl +
+                        "/rest/v1/employees?is_active=eq.true&termination_date=is.null&select=id,dni,full_name,position,app_password&order=full_name.asc",
+                    { headers },
+                );
+                empleados = await res.json();
+            } catch (e) {
+                mostrarError("Error al cargar empleados: " + e.message);
+                return;
+            }
+
+            var tbody = document.getElementById("usuariosTbody");
+            renderTabla(empleados);
+
+            // ── Búsqueda ──────────────────────────────────────────────────────
+            var buscar = document.getElementById("buscarUsuario");
+            buscar.addEventListener("input", function () {
+                var q = buscar.value.toLowerCase();
+                var filtrados = empleados.filter(function (e) {
+                    return (
+                        e.full_name.toLowerCase().includes(q) ||
+                        e.dni.includes(q)
+                    );
+                });
+                renderTabla(filtrados);
+            });
+
+            function renderTabla(lista) {
+                if (!lista || lista.length === 0) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="6" style="text-align:center;color:var(--color-text-muted);padding:24px;">Sin resultados.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = lista
+                    .map(function (emp, idx) {
+                        var tieneAcceso =
+                            emp.app_password && emp.app_password.trim() !== "";
+                        return (
+                            "<tr>" +
+                            '<td class="text-muted mono" style="text-align:center">' +
+                            (idx + 1) +
+                            "</td>" +
+                            '<td class="mono" style="font-size:12px">' +
+                            emp.dni +
+                            "</td>" +
+                            '<td style="font-weight:600;font-size:12px">' +
+                            emp.full_name +
+                            "</td>" +
+                            '<td style="font-size:12px;color:var(--color-text-muted)">' +
+                            (emp.position || "—") +
+                            "</td>" +
+                            '<td style="text-align:center">' +
+                            (tieneAcceso
+                                ? '<span class="badge badge--green" style="font-size:11px">✓ Con acceso</span>'
+                                : '<span class="badge" style="font-size:11px;border:1px solid var(--color-border)">Sin acceso</span>') +
+                            "</td>" +
+                            '<td style="text-align:center">' +
+                            '<button class="btn btn--ghost" style="font-size:11px;padding:4px 10px;" ' +
+                            "onclick=\"abrirModal('" +
+                            emp.id +
+                            "','" +
+                            escHtml(emp.full_name) +
+                            "','" +
+                            escHtml(emp.dni) +
+                            "')\">" +
+                            (tieneAcceso ? "🔑 Cambiar" : "🔑 Asignar") +
+                            "</button>" +
+                            "</td>" +
+                            "</tr>"
+                        );
+                    })
+                    .join("");
+            }
+
+            function escHtml(s) {
+                return String(s).replace(/'/g, "\\'");
+            }
+
+            // ── Modal ─────────────────────────────────────────────────────────
+            var modal = document.getElementById("modalPassword");
+            var modalTitle = document.getElementById("modalTitle");
+            var modalSubtitle = document.getElementById("modalSubtitle");
+            var pwdInput = document.getElementById("pwdInput");
+            var modalMsg = document.getElementById("modalMsg");
+            var currentEmpId = null;
+
+            window.abrirModal = function (empId, nombre, dni) {
+                currentEmpId = empId;
+                modalTitle.textContent = "Asignar Contraseña";
+                modalSubtitle.textContent = nombre + " · DNI: " + dni;
+                pwdInput.value = "";
+                modalMsg.style.display = "none";
+                modal.style.display = "flex";
+            };
+
+            document
+                .getElementById("btnCancelarModal")
+                .addEventListener("click", function () {
+                    modal.style.display = "none";
+                });
+
+            document
+                .getElementById("btnGenerar")
+                .addEventListener("click", function () {
+                    var chars =
+                        "abcdefghijkmnpqrstuvwxyz23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+                    var pwd = "";
+                    for (var i = 0; i < 8; i++) {
+                        pwd += chars.charAt(
+                            Math.floor(Math.random() * chars.length),
+                        );
+                    }
+                    pwdInput.value = pwd;
+                    pwdInput.select();
+                });
+
+            document
+                .getElementById("btnGuardarPwd")
+                .addEventListener("click", async function () {
+                    var pwd = pwdInput.value.trim();
+                    if (!pwd) {
+                        mostrarMsgModal(
+                            "error",
+                            "La contraseña no puede estar vacía.",
+                        );
+                        return;
+                    }
+                    if (pwd.length < 4) {
+                        mostrarMsgModal(
+                            "error",
+                            "La contraseña debe tener al menos 4 caracteres.",
+                        );
+                        return;
+                    }
+                    document.getElementById("btnGuardarPwd").textContent =
+                        "Guardando...";
+                    document.getElementById("btnGuardarPwd").disabled = true;
+
+                    try {
+                        var r = await fetch(
+                            sbUrl + "/rest/v1/employees?id=eq." + currentEmpId,
+                            {
+                                method: "PATCH",
+                                headers: {
+                                    ...headers,
+                                    Prefer: "return=minimal",
+                                },
+                                body: JSON.stringify({ app_password: pwd }),
+                            },
+                        );
+                        if (!r.ok) {
+                            var txt = await r.text();
+                            mostrarMsgModal(
+                                "error",
+                                "Error al guardar: " + txt,
+                            );
+                        } else {
+                            mostrarMsgModal(
+                                "ok",
+                                "✅ Contraseña guardada exitosamente.",
+                            );
+                            // Actualizar estado local
+                            var emp = empleados.find(function (e) {
+                                return e.id === currentEmpId;
+                            });
+                            if (emp) emp.app_password = pwd;
+                            var q = document
+                                .getElementById("buscarUsuario")
+                                .value.toLowerCase();
+                            var filtrados = q
+                                ? empleados.filter(function (e) {
+                                      return (
+                                          e.full_name
+                                              .toLowerCase()
+                                              .includes(q) || e.dni.includes(q)
+                                      );
+                                  })
+                                : empleados;
+                            renderTabla(filtrados);
+                            setTimeout(function () {
+                                modal.style.display = "none";
+                            }, 1500);
+                        }
+                    } catch (e) {
+                        mostrarMsgModal(
+                            "error",
+                            "Error inesperado: " + e.message,
+                        );
+                    } finally {
+                        document.getElementById("btnGuardarPwd").textContent =
+                            "Guardar";
+                        document.getElementById("btnGuardarPwd").disabled =
+                            false;
+                    }
+                });
+
+            // Cerrar modal al hacer clic fuera de él
+            modal.addEventListener("click", function (e) {
+                if (e.target === modal) modal.style.display = "none";
+            });
+
+            function mostrarMsgModal(tipo, msg) {
+                modalMsg.style.display = "block";
+                modalMsg.textContent = msg;
+                if (tipo === "ok") {
+                    modalMsg.style.background = "rgba(52,211,153,0.15)";
+                    modalMsg.style.color = "var(--color-success)";
+                } else {
+                    modalMsg.style.background = "rgba(248,113,113,0.1)";
+                    modalMsg.style.color = "var(--color-danger)";
+                }
+            }
+
+            function mostrarError(msg) {
+                var tbody = document.getElementById("usuariosTbody");
+                if (tbody) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="6" style="text-align:center;color:var(--color-danger);padding:24px;">⚠️ ' +
+                        msg +
+                        "</td></tr>";
+                }
+            }
+        })();
+    </script>
+</Layout>
