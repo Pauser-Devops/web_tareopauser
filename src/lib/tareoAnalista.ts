@@ -180,7 +180,12 @@ export async function upsertDetalleAnalista(
     const { error } = await supabase
         .from("tareos_analista_detalle")
         .upsert(
-            { ...detalle, updated_at: new Date().toISOString() },
+            {
+                ...detalle,
+                tareo_analista_id: detalle.tareo_analista_id as unknown as string,
+                empleado_id: detalle.empleado_id as unknown as string,
+                updated_at: new Date().toISOString(),
+            },
             { onConflict: "tareo_analista_id,empleado_id" }
         );
 
@@ -193,27 +198,50 @@ export async function upsertDetalleAnalista(
 
 /**
  * Guarda múltiples detalles en lote (más eficiente).
+ * Mapea cada campo explícitamente (sin spread de ...d) para que
+ * PostgREST infiera correctamente los tipos UUID sin ambigüedad.
+ * Usa .select() para confirmar las filas guardadas en la BD.
  */
 export async function upsertDetallesLote(
     detalles: TareoAnalistaDetalle[]
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; savedCount?: number }> {
     if (!supabase) return { ok: false, error: "Supabase no configurado." };
-    if (detalles.length === 0) return { ok: true };
+    if (detalles.length === 0) return { ok: true, savedCount: 0 };
 
+    // Mapeo explícito de campos: evita incluir `id: undefined`
+    // que confundía la inferencia de tipos uuid en PostgREST al hacer upsert.
     const rows = detalles.map((d) => ({
-        ...d,
+        tareo_analista_id: d.tareo_analista_id,
+        empleado_id: d.empleado_id,
+        dias_habiles: d.dias_habiles,
+        descanso_lab: d.descanso_lab,
+        desc_med: d.desc_med,
+        vel: d.vel,
+        vac: d.vac,
+        lic_sin_h: d.lic_sin_h,
+        susp: d.susp,
+        aus_sin_just: d.aus_sin_just,
+        movilidad: d.movilidad,
+        comision: d.comision,
+        bono_productiv: d.bono_productiv,
+        bono_alimento: d.bono_alimento,
+        ret_jud: d.ret_jud,
         updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from("tareos_analista_detalle")
-        .upsert(rows, { onConflict: "tareo_analista_id,empleado_id" });
+        .upsert(rows, { onConflict: "tareo_analista_id,empleado_id" })
+        .select("id");
 
     if (error) {
         console.error("[tareoAnalista] upsertDetallesLote:", error.message);
         return { ok: false, error: error.message };
     }
-    return { ok: true };
+
+    const savedCount = data?.length ?? 0;
+    console.log(`[tareoAnalista] upsertDetallesLote: ${savedCount} filas guardadas de ${detalles.length} enviadas`);
+    return { ok: true, savedCount };
 }
 
 // ─── Cierre del tareo ─────────────────────────────────────────────────────────

@@ -458,7 +458,8 @@ const currentPath = Astro.url.pathname;
 					logoutBtn.style.display = "inline-flex";
 					logoutBtn.addEventListener("click", function () {
 						window.sessionStorage.removeItem(SESSION_KEY);
-						window.location.href = "/login";
+						window.sessionStorage.removeItem("pt_periodo");
+						window.location.href = "/api/logout";
 					});
 				}
 

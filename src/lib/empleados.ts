@@ -169,6 +169,61 @@ export async function countSinConfig(): Promise<number> {
 
 // ─── Guardar config tareo ─────────────────────────────────────────────────────
 
+/**
+ * Actualiza en lote sueldo_base, afp_codigo y vida_ley desde la importación Excel.
+ * Solo incluye campos que tengan valor válido; no sobreescribe campos no importados.
+ */
+export async function upsertConfigsLote(
+    configs: Array<{
+        employee_id: string;
+        sueldo_base?: number;
+        afp_codigo?: string;
+        vida_ley?: boolean;
+    }>
+): Promise<{ ok: boolean; error?: string; savedCount?: number }> {
+    if (!supabase) return { ok: false, error: "Supabase no configurado." };
+    const validos = configs.filter((c) => c.employee_id);
+    if (validos.length === 0) return { ok: true, savedCount: 0 };
+
+    // Para cada empleado: traer config actual y hacer merge para no pisar campos vacíos
+    const ids = validos.map((c) => c.employee_id);
+    const { data: existentes } = await supabase
+        .from("tareo_employee_config")
+        .select("*")
+        .in("employee_id", ids);
+
+    const existMap = new Map(
+        ((existentes ?? []) as TareoEmployeeConfig[]).map((c) => [c.employee_id, c])
+    );
+
+    const rows = validos.map((c) => {
+        const prev = existMap.get(c.employee_id);
+        return {
+            employee_id: c.employee_id,
+            sueldo_base: c.sueldo_base ?? prev?.sueldo_base ?? 0,
+            afp_codigo: c.afp_codigo || prev?.afp_codigo || "ONP",
+            vida_ley: c.vida_ley ?? prev?.vida_ley ?? false,
+            eps: prev?.eps ?? false,
+            sctr: prev?.sctr ?? false,
+            cuenta_haberes: prev?.cuenta_haberes ?? "",
+            updated_at: new Date().toISOString(),
+        };
+    });
+
+    const { data, error } = await supabase
+        .from("tareo_employee_config")
+        .upsert(rows, { onConflict: "employee_id" })
+        .select("id");
+
+    if (error) {
+        console.error("[empleados] upsertConfigsLote:", error.message);
+        return { ok: false, error: error.message };
+    }
+    const savedCount = data?.length ?? 0;
+    console.log(`[empleados] upsertConfigsLote: ${savedCount} configs actualizadas`);
+    return { ok: true, savedCount };
+}
+
 export async function saveConfigTareo(
     config: TareoEmployeeConfig
 ): Promise<{ ok: boolean; error?: string }> {
