@@ -1162,12 +1162,22 @@ if (sessionCookie?.value) {
                         blockedMs: Math.max(0, st.blockedUntil - Date.now()),
                     };
                 }
+                const position = (data.position || "").toUpperCase();
+                const rolDerived = position.includes("JEFE") ? "jefe" : "analista";
+                
+                // Prioridad a la posición "JEFE" sobre "analista" en BD
+                let rolFinal = "analista";
+                if (data.rol === "jefe") rolFinal = "jefe";
+                else if (rolDerived === "jefe") rolFinal = "jefe";
+                else if (data.rol === "analista") rolFinal = "analista";
+                else rolFinal = rolDerived;
+
                 const user = {
                     id: data.id,
                     nombre: data.nombre,
                     position: data.position,
                     sede: data.sede,
-                    rol: data.rol,
+                    rol: rolFinal,
                 };
                 sessionStorage.setItem("pt_auth", JSON.stringify(user));
                 // También fijar cookie para protección server-side (middleware)

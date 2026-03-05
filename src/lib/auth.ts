@@ -1,21 +1,3 @@
-/**
- * auth.ts — Módulo de autenticación para PAUSER TAREO
- *
- * Flujo:
- *   1. El usuario ingresa su DNI + app_password en el login.
- *   2. Se llama a verifyTareoLogin() que ejecuta la RPC en Supabase.
- *   3. Si las credenciales son válidas Y el cargo es permitido, se guarda
- *      la sesión en sessionStorage (se borra al cerrar el navegador).
- *   4. Layout.astro verifica la sesión en cada página y redirige a /login si no hay.
- *
- * Seguridad:
- *   - La contraseña NUNCA se guarda en sessionStorage.
- *   - Rate limiting: 3 intentos fallidos → 30 s de bloqueo (en localStorage).
- *   - La RPC en Supabase usa SECURITY DEFINER: el anon key no puede leer
- *     la tabla employees directamente.
- *   - sessionStorage se borra automáticamente al cerrar la pestaña.
- */
-
 import { verifyTareoLogin } from "./supabase";
 
 export const SESSION_KEY = "pt_auth";
@@ -23,57 +5,60 @@ export const SESSION_COOKIE = "pt_session";
 
 // ─── Cookie helpers (cliente) ──────────────────────────────────────────────────
 
-/** Escribe la cookie de sesión para protección server-side (middleware) */
-function setSessionCookie(user: SessionUser): void {
+function setSessionCookie(user: SessionUser) {
     if (typeof document === "undefined") return;
-    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(user))));
-    // 8 horas — equivale a una jornada laboral
-    document.cookie = `${SESSION_COOKIE}=${encoded}; SameSite=Strict; Path=/; Max-Age=28800`;
+    // Guardar cookie para middleware (server-side protection)
+    // codificamos doble para evitar problemas con caracteres especiales en JSON
+    const val = btoa(unescape(encodeURIComponent(JSON.stringify(user))));
+    // 1 día de duración
+    document.cookie = `${SESSION_COOKIE}=${val}; path=/; max-age=86400; SameSite=Strict`;
 }
 
-// ─── Rate limiting ────────────────────────────────────────────────────────────
+function clearSessionCookie() {
+    if (typeof document === "undefined") return;
+    document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Strict`;
+}
 
-const RL_KEY = "pt_rl";          // localStorage key
-const MAX_TRIES = 3;
-const BLOCK_MS = 30_000;           // 30 segundos
+// ─── Rate Limiting (localStorage) ──────────────────────────────────────────────
 
-interface RLState { tries: number; blockedUntil: number }
+const RL_KEY = "pt_rl"; // Rate Limit Key
 
-function getRLState(): RLState {
+function getBlockedMs(): number {
+    if (typeof window === "undefined") return 0;
     try {
         const raw = localStorage.getItem(RL_KEY);
-        return raw ? JSON.parse(raw) : { tries: 0, blockedUntil: 0 };
-    } catch {
-        return { tries: 0, blockedUntil: 0 };
-    }
+        if (!raw) return 0;
+        const data = JSON.parse(raw);
+        if (data.blockedUntil && data.blockedUntil > Date.now()) {
+            return data.blockedUntil - Date.now();
+        }
+    } catch {}
+    return 0;
 }
 
-function saveRLState(state: RLState) {
-    localStorage.setItem(RL_KEY, JSON.stringify(state));
+function registerFailedAttempt() {
+    if (typeof window === "undefined") return;
+    try {
+        const raw = localStorage.getItem(RL_KEY);
+        let data = { tries: 0, blockedUntil: 0 };
+        if (raw) data = JSON.parse(raw);
+
+        data.tries += 1;
+        if (data.tries >= 3) {
+            // Bloquear 30 segundos
+            data.blockedUntil = Date.now() + 30000;
+            data.tries = 0;
+        }
+        localStorage.setItem(RL_KEY, JSON.stringify(data));
+    } catch {}
 }
 
-/** Devuelve los ms restantes de bloqueo (0 = no bloqueado) */
-export function getBlockedMs(): number {
-    const st = getRLState();
-    const remaining = st.blockedUntil - Date.now();
-    return remaining > 0 ? remaining : 0;
-}
-
-function registerFailedAttempt(): void {
-    const st = getRLState();
-    st.tries += 1;
-    if (st.tries >= MAX_TRIES) {
-        st.blockedUntil = Date.now() + BLOCK_MS;
-        st.tries = 0;
-    }
-    saveRLState(st);
-}
-
-function resetRateLimit(): void {
+function resetRateLimit() {
+    if (typeof window === "undefined") return;
     localStorage.removeItem(RL_KEY);
 }
 
-// ─── Tipos de sesión ──────────────────────────────────────────────────────────
+// ─── Tipos ─────────────────────────────────────────────────────────────────────
 
 export interface SessionUser {
     id: string;
@@ -84,13 +69,12 @@ export interface SessionUser {
     rol: "jefe" | "analista";
 }
 
-// ─── Login ────────────────────────────────────────────────────────────────────
+// ─── Login principal ───────────────────────────────────────────────────────────
 
 export async function login(
     dni: string,
     password: string
 ): Promise<{ ok: boolean; error?: string; blockedMs?: number }> {
-
     // 1. Verificar rate limit
     const blockedMs = getBlockedMs();
     if (blockedMs > 0) {
@@ -123,14 +107,34 @@ export async function login(
     // Derivamos el rol desde el cargo (position) para no depender
     // de que la RPC devuelva exactamente "jefe"/"analista".
     const position = (result.position ?? "").toUpperCase();
-    const rolDerived: "jefe" | "analista" =
-        position.includes("JEFE") ? "jefe" : "analista";
+    const rolDerived: "jefe" | "analista" = position.includes("JEFE")
+        ? "jefe"
+        : "analista";
 
-    // También aceptamos si la RPC ya devuelve el rol correcto
-    const rolFinal: "jefe" | "analista" =
-        result.rol === "jefe" || result.rol === "analista"
-            ? result.rol
-            : rolDerived;
+    // Debugging para el usuario (se verá en la consola del navegador)
+    console.log("[Auth] Login exitoso. Datos recibidos:", {
+        nombre: result.nombre,
+        position: result.position,
+        rol_db: result.rol,
+        rol_derivado: rolDerived
+    });
+
+    // También aceptamos si la RPC ya devuelve el rol correcto,
+    // PERO si el cargo dice JEFE, le damos prioridad (auto-promotion)
+    // para corregir casos donde la BD tenga "analista" por defecto.
+    let rolFinal: "jefe" | "analista" = "analista";
+
+    if (result.rol === "jefe") {
+        rolFinal = "jefe";
+    } else if (rolDerived === "jefe") {
+        rolFinal = "jefe";
+    } else if (result.rol === "analista") {
+        rolFinal = "analista";
+    } else {
+        rolFinal = rolDerived;
+    }
+
+    console.log("[Auth] Rol final asignado:", rolFinal);
 
     const sessionUser: SessionUser = {
         id: result.id!,

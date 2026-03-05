@@ -176,8 +176,8 @@ const mesActual = new Date().getMonth() + 1;
             pAnio;
         }
 
-        // Mostrar el botón solo si el cargo incluye "JEFE DE GENTE Y GESTIÓN"
-        if (btn && pos.includes("JEFE DE GENTE Y GESTIÓN")) {
+        // Mostrar el botón solo si el usuario es JEFE (según auth.ts)
+        if (btn && user.rol === "jefe") {
           btn.href = "/tareo/maestro";
           btn.style.display = "inline-flex";
         }

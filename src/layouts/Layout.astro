@@ -236,6 +236,7 @@ const currentPath = Astro.url.pathname;
 				var user;
 				try {
 					user = JSON.parse(raw);
+					console.log("[Layout] Sesión cargada:", user);
 				} catch (_) {
 					return;
 				}
