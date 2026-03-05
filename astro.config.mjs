@@ -11,10 +11,10 @@ export default defineConfig({
         mode: "standalone" 
     }),
     // Añadimos esta sección para configurar el puerto y el host
-/*     server: {
+    server: {
         port: 3000,
         host: true // Esto habilita el host 0.0.0.0
-    }, */
+    },
     integrations: [react()],
     vite: {
         plugins: [tailwindcss()],
