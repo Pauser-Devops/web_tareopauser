@@ -1,32 +1,32 @@
 -- ============================================================
--- RPC: consolidar_tareo_maestro
+-- FIX: Agregar columnas faltantes a tareo_maestro_detalle
+-- + Re-crear la función consolidar_tareo_maestro
+--
 -- Ejecutar en: Supabase Dashboard → SQL Editor
---
--- Consolida todos los tareos de analistas (estado: cerrado u
--- obs_levantadas) en el Tareo Maestro de forma ATÓMICA.
---
--- PL/pgSQL garantiza que el DELETE + INSERT ocurren dentro de
--- una sola transacción: si algo falla, el estado anterior se
--- restaura automáticamente (rollback implícito).
---
--- Uso desde TypeScript:
---   await supabase.rpc('consolidar_tareo_maestro', { p_anio: 2026, p_mes: 3 })
 -- ============================================================
 
+-- 1. Agregar columnas que pueden faltar en tareo_maestro_detalle
+ALTER TABLE tareo_maestro_detalle
+    ADD COLUMN IF NOT EXISTS comision      NUMERIC(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS bono_productiv NUMERIC(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS bono_alimento  NUMERIC(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS ret_jud        NUMERIC(12,2) NOT NULL DEFAULT 0;
+
+-- 2. Re-crear la función consolidar_tareo_maestro (sin cambios en lógica)
 CREATE OR REPLACE FUNCTION consolidar_tareo_maestro(
     p_anio INT,
     p_mes  INT
 )
 RETURNS JSONB
 LANGUAGE plpgsql
-SECURITY DEFINER          -- Ejecuta con permisos del owner, bypassea RLS
+SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
     v_maestro_id UUID;
     v_filas      INT := 0;
 BEGIN
-    -- ── 1. Obtener o crear el header del Tareo Maestro ──────────────────────
+    -- 1. Obtener o crear el header del Tareo Maestro
     SELECT id INTO v_maestro_id
     FROM   tareo_maestro
     WHERE  anio = p_anio AND mes = p_mes
@@ -42,14 +42,11 @@ BEGIN
         WHERE  id = v_maestro_id;
     END IF;
 
-    -- ── 2. Borrar consolidación anterior (dentro de la misma transacción) ──
+    -- 2. Borrar consolidación anterior
     DELETE FROM tareo_maestro_detalle
     WHERE  tareo_maestro_id = v_maestro_id;
 
-    -- ── 3. Insertar filas de todos los tareos listos ────────────────────────
-    --       (estado: 'cerrado' u 'obs_levantadas')
-    --       Incluye comision, bono_productiv, bono_alimento que la versión
-    --       anterior en TypeScript omitía por error.
+    -- 3. Insertar desde todos los tareos cerrados / obs_levantadas
     INSERT INTO tareo_maestro_detalle (
         tareo_maestro_id,
         empleado_id,
@@ -97,7 +94,7 @@ BEGIN
 
     GET DIAGNOSTICS v_filas = ROW_COUNT;
 
-    -- ── 4. Marcar el maestro como concretado ────────────────────────────────
+    -- 4. Marcar como concretado
     UPDATE tareo_maestro
     SET    estado     = 'concretado',
            updated_at = NOW()
@@ -110,7 +107,6 @@ BEGIN
     );
 
 EXCEPTION WHEN OTHERS THEN
-    -- PL/pgSQL hace rollback automático de todo lo anterior
     RETURN jsonb_build_object(
         'ok',    false,
         'error', SQLERRM
@@ -118,6 +114,6 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Dar permisos de ejecución al rol anon (cliente Supabase)
+-- 3. Permisos
 GRANT EXECUTE ON FUNCTION consolidar_tareo_maestro(INT, INT) TO anon;
 GRANT EXECUTE ON FUNCTION consolidar_tareo_maestro(INT, INT) TO authenticated;

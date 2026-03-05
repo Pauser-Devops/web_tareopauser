@@ -61,7 +61,7 @@ export async function consolidarTareoMaestro(
     try {
         const { data, error } = await supabase.rpc("consolidar_tareo_maestro", {
             p_anio: anio,
-            p_mes:  mes,
+            p_mes: mes,
         });
 
         if (error) {
@@ -255,7 +255,17 @@ export async function fetchTareoMaestroLive(
     // 4. Merge
     const result: TareoFilaLive[] = emps.map((emp) => {
         const d = detalleMap.get(emp.id);
-        const estadoSede = d ? sedesMap.get(d.tareo_analista_id) || "borrador" : "sin_iniciar";
+        const estadoRaw = d ? (sedesMap.get(d.tareo_analista_id) ?? null) : null;
+        let estadoSede: "sin_iniciar" | "borrador" | "cerrado";
+        if (!estadoRaw) {
+            estadoSede = "sin_iniciar";
+        } else if (estadoRaw === "cerrado" || estadoRaw === "obs_levantadas") {
+            estadoSede = "cerrado";
+        } else {
+            // abierto | borrador | en_revision → en progreso
+            estadoSede = "borrador";
+        }
+
 
         return {
             id: d?.id ?? `virtual_${emp.id}`,

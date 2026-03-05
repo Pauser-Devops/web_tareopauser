@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useStore } from "@nanostores/react";
 import { $user } from "../../lib/stores";
 import { supabase, MESES } from "../../lib/supabase";
 import { fetchTareoMaestroLive } from "../../lib/tareoMaestro";
 import {
     calcDiasTrab,
-    calcTotalHoras,
     calcTotalIngresos,
     calcTotalDescuentos,
     calcNetoPagar,
@@ -31,93 +30,110 @@ export default function DashboardRecentTareos({ anioActual }: { anioActual: numb
     const [loaded, setLoaded] = useState(false);
     const [recentSumm, setRecentSumm] = useState<RecentTareoSummary[]>([]);
 
-    useEffect(() => {
-        async function loadData() {
-            setLoaded(false);
-            const currentMonth = new Date().getMonth() + 1;
+    // ── Función de carga extraída al nivel del componente ──────────────────────
+    const loadData = useCallback(async () => {
+        setLoaded(false);
+        const currentMonth = new Date().getMonth() + 1;
+        const mesesAEvaluar = [currentMonth, currentMonth === 1 ? 12 : currentMonth - 1];
+        const list: RecentTareoSummary[] = [];
 
-            // Evaluamos el mes actual y el mes anterior para mostrar en recientes (por ejemplo)
-            const mesesAEvualuar = [currentMonth, currentMonth === 1 ? 12 : currentMonth - 1];
+        for (const m of mesesAEvaluar) {
+            const a = (m === 12 && currentMonth === 1) ? anioActual - 1 : anioActual;
+            const dataLive = await fetchTareoMaestroLive(a, m);
 
-            const list: RecentTareoSummary[] = [];
+            let totalN = 0;
+            let estadoGeneral = "Sin iniciar";
 
-            for (const m of mesesAEvualuar) {
-                const a = (m === 12 && currentMonth === 1) ? anioActual - 1 : anioActual;
+            if (dataLive.length > 0 && supabase) {
+                const ids = dataLive.map((d) => d.empleado_id);
 
-                // Para un cálculo rápido exacto como el DashboardStats
-                const dataLive = await fetchTareoMaestroLive(a, m);
+                // ── Calcular neto total ────────────────────────────────────────
+                const { data: configs } = await supabase
+                    .from("tareo_employee_config")
+                    .select("*")
+                    .in("employee_id", ids);
 
-                let totalN = 0;
-                let estadoGeneral = "Pendiente";
+                const configMap = new Map(
+                    ((configs ?? []) as unknown as TareoEmployeeConfig[]).map((c) => [c.employee_id, c])
+                );
 
-                if (dataLive.length > 0 && supabase) {
-                    const ids = dataLive.map((d) => d.empleado_id);
-                    const { data: configs } = await supabase
-                        .from("tareo_employee_config")
-                        .select("*")
-                        .in("employee_id", ids);
+                dataLive.forEach(d => {
+                    const config = configMap.get(d.empleado_id);
+                    const sueldoBase = config?.sueldo_base ?? 0;
+                    const afp = config?.afp_codigo ?? "ONP";
+                    const tieneVidaLey = config?.vida_ley ?? false;
 
-                    const configMap = new Map(
-                        ((configs ?? []) as unknown as TareoEmployeeConfig[]).map((c) => [c.employee_id, c])
-                    );
+                    const diasTrab = calcDiasTrab(d.dias_habiles, d.vac, d.lic_sin_h, d.susp, d.aus_sin_just);
+                    const sueldoProp = calcSueldoProporcional(sueldoBase, diasTrab, 30);
+                    const totalAfecto = round2(sueldoProp);
+                    const totalNoAfecto = round2(d.movilidad);
+                    const totalIngresos = calcTotalIngresos(totalAfecto, totalNoAfecto);
+                    const afpOnp = calcAfpOnpSimple(totalAfecto, afp);
+                    const vidaLey = calcVidaLey(totalAfecto, tieneVidaLey);
+                    const totalDesc = calcTotalDescuentos({ afp_onp: afpOnp, vida_ley: vidaLey, ret_jud: d.ret_jud });
+                    totalN += calcNetoPagar(totalIngresos, totalDesc);
+                });
 
-                    let countBorrador = 0;
-                    let countCerrado = 0;
-                    let countSinIniciar = 0;
+                // ── Estado del mes basado en tareos de analistas (no por empleado) ──
+                // cerrado u obs_levantadas = analista terminó; en_revision = en revisión
+                const { data: tareosSedes } = await supabase
+                    .from("tareos_analista")
+                    .select("estado")
+                    .eq("anio", a)
+                    .eq("mes", m);
 
-                    dataLive.forEach(d => {
-                        const config = configMap.get(d.empleado_id);
-                        const sueldoBase = config?.sueldo_base ?? 0;
-                        const afp = config?.afp_codigo ?? "ONP";
-                        const tieneVidaLey = config?.vida_ley ?? false;
+                const estadosList = (tareosSedes ?? []) as { estado: string }[];
+                const totalAnalistas = estadosList.length;
 
-                        const diasTrab = calcDiasTrab(d.dias_habiles, d.vac, d.lic_sin_h, d.susp, d.aus_sin_just);
-                        const sueldoProp = calcSueldoProporcional(sueldoBase, diasTrab, 30);
-                        const totalAfecto = round2(sueldoProp);
-                        const totalNoAfecto = round2(d.movilidad);
-                        const totalIngresos = calcTotalIngresos(totalAfecto, totalNoAfecto);
-                        const afpOnp = calcAfpOnpSimple(totalAfecto, afp);
-                        const vidaLey = calcVidaLey(totalAfecto, tieneVidaLey);
-                        const totalDesc = calcTotalDescuentos({ afp_onp: afpOnp, vida_ley: vidaLey, ret_jud: d.ret_jud });
+                if (totalAnalistas === 0) {
+                    estadoGeneral = "Sin iniciar";
+                } else {
+                    const cerrados = estadosList.filter(t =>
+                        t.estado === "cerrado" || t.estado === "obs_levantadas"
+                    ).length;
+                    const enRevision = estadosList.filter(t => t.estado === "en_revision").length;
 
-                        totalN += calcNetoPagar(totalIngresos, totalDesc);
-
-                        if (d.estado_sede === "borrador") countBorrador++;
-                        else if (d.estado_sede === "cerrado") countCerrado++;
-                        else countSinIniciar++;
-                    });
-
-                    // Determinar estado consolidado
-                    if (countCerrado === dataLive.length) {
+                    if (cerrados === totalAnalistas) {
                         estadoGeneral = "Cerrado";
-                    } else if (countBorrador > 0 || countCerrado > 0) {
-                        estadoGeneral = "Borrador";
+                    } else if (enRevision > 0) {
+                        estadoGeneral = "En revisión";
                     } else {
-                        estadoGeneral = "Sin iniciar";
+                        estadoGeneral = "Borrador";
                     }
                 }
-
-                list.push({
-                    mes: m,
-                    anio: a,
-                    trabajadores: dataLive.length,
-                    estado: estadoGeneral,
-                    netoTotal: totalN
-                });
             }
 
-            // Ordenamos: Mes actual primero (o depende como convenga, ej: descendente)
-            list.sort((a, b) => {
-                if (a.anio !== b.anio) return b.anio - a.anio;
-                return b.mes - a.mes;
-            });
-
-            setRecentSumm(list);
-            setLoaded(true);
+            list.push({ mes: m, anio: a, trabajadores: dataLive.length, estado: estadoGeneral, netoTotal: totalN });
         }
 
-        loadData();
+        list.sort((a, b) => {
+            if (a.anio !== b.anio) return b.anio - a.anio;
+            return b.mes - a.mes;
+        });
+
+        setRecentSumm(list);
+        setLoaded(true);
     }, [anioActual]);
+
+    // Carga inicial
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    // Re-fetch cuando el usuario vuelve a la pestaña o a la ventana
+    useEffect(() => {
+        const handleVisible = () => {
+            if (document.visibilityState === "visible") loadData();
+        };
+        const handleFocus = () => loadData();
+
+        document.addEventListener("visibilitychange", handleVisible);
+        window.addEventListener("focus", handleFocus);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisible);
+            window.removeEventListener("focus", handleFocus);
+        };
+    }, [loadData]);
 
     return (
         <div className="table-wrapper" style={{ border: "none", borderRadius: 0 }}>
@@ -140,11 +156,12 @@ export default function DashboardRecentTareos({ anioActual }: { anioActual: numb
                             </td>
                         </tr>
                     ) : (
-                        recentSumm.map((s, idx) => {
+                        recentSumm.map((s) => {
                             const dest = role === "jefe" ? "maestro" : "analista";
                             const link = `/tareo/${dest}?anio=${s.anio}&mes=${s.mes}`;
                             let badgeClass = "badge--gray";
                             if (s.estado === "Borrador") badgeClass = "badge--yellow";
+                            if (s.estado === "En revisión") badgeClass = "badge--orange";
                             if (s.estado === "Cerrado") badgeClass = "badge--green";
 
                             return (
