@@ -1,6 +1,7 @@
 import React from "react";
 import type { TareoAnalistaDetalle } from "../../lib/tareoAnalista";
 import { type EmpleadoFila, type VistaTab, type TotalesRow, calcularFila, validarDetalle } from "./tareoAnalistaTypes";
+import PaginationControls from "./PaginationControls";
 
 const tabs: { key: VistaTab; label: string }[] = [
     { key: "dias", label: "Días Laborados" },
@@ -15,7 +16,12 @@ const ERR_STYLE: React.CSSProperties = {
 };
 
 type Props = {
-    filasFiltradas: EmpleadoFila[];
+    filasPagina: EmpleadoFila[];
+    totalFiltradas: number;
+    paginaActual: number;
+    totalPaginas: number;
+    porPagina: number;
+    setPagina: (p: number) => void;
     verColumnas: VistaTab;
     setVerColumnas: (v: VistaTab) => void;
     esReadonly: boolean;
@@ -25,8 +31,10 @@ type Props = {
 };
 
 export default function TareoAnalistaTable({
-    filasFiltradas, verColumnas, setVerColumnas, esReadonly, updateDetalle, totales, diasMax,
+    filasPagina, totalFiltradas, paginaActual, totalPaginas, porPagina, setPagina,
+    verColumnas, setVerColumnas, esReadonly, updateDetalle, totales, diasMax,
 }: Props) {
+    const offsetInicio = paginaActual * porPagina;
     return (
         <>
             {/* Tabs */}
@@ -134,13 +142,13 @@ export default function TareoAnalistaTable({
                     </thead>
 
                     <tbody>
-                        {filasFiltradas.map((emp, idx) => {
+                        {filasPagina.map((emp, idx) => {
                             const c = calcularFila(emp);
                             const v = validarDetalle(emp.detalle, diasMax);
                             return (
                                 <tr key={emp.id} style={v.tieneError ? { background: "rgba(248,113,113,0.04)" } : undefined}>
                                     <td className="text-muted mono" style={{ textAlign: "center", color: v.tieneError ? "var(--color-danger)" : undefined }}>
-                                        {v.tieneError ? "!" : idx + 1}
+                                        {v.tieneError ? "!" : offsetInicio + idx + 1}
                                     </td>
                                     <td style={{ fontWeight: 600, fontSize: "12px" }}>
                                         {emp.full_name}
@@ -277,7 +285,7 @@ export default function TareoAnalistaTable({
                     <tfoot>
                         <tr>
                             <td colSpan={4} style={{ textAlign: "right" }}>
-                                SUBTOTALES ({filasFiltradas.length} trabajadores)
+                                SUBTOTALES ({totalFiltradas} trabajadores)
                             </td>
                             {verColumnas === "dias" && <>
                                 <td className="cell-num">{totales.diasTrab}</td>
@@ -306,6 +314,15 @@ export default function TareoAnalistaTable({
                     </tfoot>
                 </table>
             </div>
+
+            {/* Paginación */}
+            <PaginationControls
+                paginaActual={paginaActual}
+                totalPaginas={totalPaginas}
+                porPagina={porPagina}
+                totalFiltradas={totalFiltradas}
+                setPagina={setPagina}
+            />
 
             {/* Resumen pie */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px", marginTop: "16px" }}>

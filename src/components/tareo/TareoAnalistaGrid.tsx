@@ -49,6 +49,8 @@ export default function TareoAnalistaGrid({
     const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved">("idle");
     const [periodoConcreto, setPeriodoConcreto] = useState(false);
+    const [pagina, setPagina] = useState(0);
+    const POR_PAGINA = 20;
 
     // ── Carga inicial ──────────────────────────────────────────────────────────
     useEffect(() => {
@@ -250,6 +252,17 @@ export default function TareoAnalistaGrid({
         return e.full_name.toLowerCase().includes(q) || e.dni.includes(q) || e.position.toLowerCase().includes(q);
     });
 
+    // Reset página al filtrar
+    const buscarPrev = useRef(buscar);
+    if (buscarPrev.current !== buscar) {
+        buscarPrev.current = buscar;
+        if (pagina !== 0) setPagina(0);
+    }
+
+    const totalPaginas = Math.max(1, Math.ceil(filasFiltradas.length / POR_PAGINA));
+    const paginaSegura = Math.min(pagina, totalPaginas - 1);
+    const filasPagina = filasFiltradas.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA);
+
     const totales = filasFiltradas.reduce(
         (acc, emp) => {
             const c = calcularFila(emp);
@@ -419,7 +432,12 @@ export default function TareoAnalistaGrid({
             )}
 
             <TareoAnalistaTable
-                filasFiltradas={filasFiltradas}
+                filasPagina={filasPagina}
+                totalFiltradas={filasFiltradas.length}
+                paginaActual={paginaSegura}
+                totalPaginas={totalPaginas}
+                porPagina={POR_PAGINA}
+                setPagina={setPagina}
                 verColumnas={verColumnas}
                 setVerColumnas={setVerColumnas}
                 esReadonly={esReadonly}

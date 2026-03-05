@@ -24,6 +24,7 @@ import {
 } from "../../lib/formulas";
 import type { TareoEmployeeConfig } from "../../lib/empleados";
 import { exportarPDF, exportarExcel, construirFilas, type FilaRaw } from "../../lib/exportUtils";
+import PaginationControls from "./PaginationControls";
 
 type VistaTab = "dias" | "ingresos" | "descuentos" | "totales";
 
@@ -48,6 +49,11 @@ export default function TareoMaestroWrapper() {
     const [verColumnas, setVerColumnas] = useState<VistaTab>("dias");
     const [buscar, setBuscar] = useState("");
     const [loaded, setLoaded] = useState(false);
+    const [pagina, setPagina] = useState(0);
+    const POR_PAGINA = 20;
+
+    // Reset página al cambiar el filtro de búsqueda
+    React.useEffect(() => { setPagina(0); }, [buscar]);
 
     useEffect(() => {
         if (!user) { window.location.href = "/login"; return; }
@@ -126,6 +132,11 @@ export default function TareoMaestroWrapper() {
             d.business_unit?.toLowerCase().includes(q)
         );
     });
+
+    const totalPaginas = Math.max(1, Math.ceil(detallesFiltrados.length / POR_PAGINA));
+    const paginaSegura = Math.min(pagina, totalPaginas - 1);
+    const detallesPagina = detallesFiltrados.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA);
+    const offsetInicio = paginaSegura * POR_PAGINA;
 
     function calcFila(d: TareoFilaLive) {
         const config = configMap.get(d.empleado_id);
@@ -353,11 +364,11 @@ export default function TareoMaestroWrapper() {
                         </tr>
                     </thead>
                     <tbody>
-                        {detallesFiltrados.map((d, idx) => {
+                        {detallesPagina.map((d, idx) => {
                             const c = calcFila(d);
                             return (
                                 <tr key={d.id}>
-                                    <td className="text-muted mono" style={{ textAlign: "center" }}>{idx + 1}</td>
+                                    <td className="text-muted mono" style={{ textAlign: "center" }}>{offsetInicio + idx + 1}</td>
                                     <td style={{ fontWeight: 600, fontSize: "12px" }}>
                                         {d.empleado?.full_name ?? d.empleado_id}
                                         <div style={{ fontSize: "11px", color: "var(--color-text-muted)", fontWeight: 400 }}>{d.empleado?.dni}</div>
@@ -409,7 +420,7 @@ export default function TareoMaestroWrapper() {
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colSpan={4} style={{ textAlign: "right" }}>SUBTOTALES ({detallesFiltrados.length} trabajadores)</td>
+                            <td colSpan={4} style={{ textAlign: "right" }}>SUBTOTALES ({detallesFiltrados.length} trabajadores — página {paginaSegura + 1}/{totalPaginas})</td>
                             {verColumnas === "dias" && <>
                                 <td className="cell-num">{totales.diasTrab}</td>
                                 <td className="cell-num">{totales.totalHoras}</td>
@@ -437,6 +448,15 @@ export default function TareoMaestroWrapper() {
                     </tfoot>
                 </table>
             </div>
+
+            {/* Paginación */}
+            <PaginationControls
+                paginaActual={paginaSegura}
+                totalPaginas={totalPaginas}
+                porPagina={POR_PAGINA}
+                totalFiltradas={detallesFiltrados.length}
+                setPagina={setPagina}
+            />
 
             {/* Resumen pie */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px", marginTop: "16px" }}>

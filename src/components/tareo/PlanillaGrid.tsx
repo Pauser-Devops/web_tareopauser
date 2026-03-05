@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
+import PaginationControls from "./PaginationControls";
 import {
     calcDiasTrab,
     calcTotalHoras,
@@ -95,6 +96,10 @@ export default function PlanillaGrid({ mes, anio, mesLabel }: Props) {
     const [empleados, setEmpleados] = useState<EmpleadoRow[]>(EMPLEADOS_DEMO);
     const [buscar, setBuscar] = useState("");
     const [verColumnas, setVerColumnas] = useState<"dias" | "ingresos" | "descuentos" | "totales">("dias");
+    const [pagina, setPagina] = useState(0);
+    const POR_PAGINA = 20;
+
+    useEffect(() => { setPagina(0); }, [buscar]);
 
     const filas = empleados
         .filter(e => {
@@ -102,6 +107,11 @@ export default function PlanillaGrid({ mes, anio, mesLabel }: Props) {
             return e.nombre.toLowerCase().includes(q) || e.dni.includes(q) || e.cargo.toLowerCase().includes(q);
         })
         .map(calcularFila);
+
+    const totalPaginas = Math.max(1, Math.ceil(filas.length / POR_PAGINA));
+    const paginaSegura = Math.min(pagina, totalPaginas - 1);
+    const filasPagina = filas.slice(paginaSegura * POR_PAGINA, (paginaSegura + 1) * POR_PAGINA);
+    const offsetInicio = paginaSegura * POR_PAGINA;
 
     // ── Exportar CSV (abre en Excel) ──────────────────────────────────────────
     const exportarExcel = useCallback(() => {
@@ -333,10 +343,10 @@ export default function PlanillaGrid({ mes, anio, mesLabel }: Props) {
                     </thead>
 
                     <tbody>
-                        {filas.map((f, idx) => (
+                        {filasPagina.map((f, idx) => (
                             <tr key={f.dni}>
                                 {/* Fijos */}
-                                <td style={{ position: "sticky", left: 0, background: "var(--color-surface)", zIndex: 10 }} className="text-muted mono">{f.num}</td>
+                                <td style={{ position: "sticky", left: 0, background: "var(--color-surface)", zIndex: 10 }} className="text-muted mono">{offsetInicio + idx + 1}</td>
                                 <td style={{ position: "sticky", left: "44px", background: "var(--color-surface)", zIndex: 10, fontWeight: 600, fontSize: "12px" }}>
                                     {f.nombre}
                                     <div style={{ fontSize: "11px", color: "var(--color-text-muted)", fontWeight: 400 }}>{f.dni}</div>
@@ -434,6 +444,7 @@ export default function PlanillaGrid({ mes, anio, mesLabel }: Props) {
                                 SUBTOTALES ({filas.length} trabajadores)
                             </td>
 
+
                             {verColumnas === "dias" && <>
                                 <td className="cell-num">{totales.diasTrab}</td>
                                 <td className="cell-num">{totales.totalHoras}</td>
@@ -471,6 +482,15 @@ export default function PlanillaGrid({ mes, anio, mesLabel }: Props) {
                     </tfoot>
                 </table>
             </div>
+
+            {/* Paginación */}
+            <PaginationControls
+                paginaActual={paginaSegura}
+                totalPaginas={totalPaginas}
+                porPagina={POR_PAGINA}
+                totalFiltradas={filas.length}
+                setPagina={setPagina}
+            />
 
             {/* Resumen pie */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px", marginTop: "16px" }}>
