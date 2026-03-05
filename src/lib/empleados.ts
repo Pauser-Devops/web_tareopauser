@@ -34,6 +34,7 @@ export interface TareoEmployeeConfig {
     eps: boolean;
     sctr: boolean;
     cuenta_haberes?: string;
+    banco?: string;
     observaciones?: string;
     updated_at?: string;
 }
@@ -179,6 +180,9 @@ export async function upsertConfigsLote(
         sueldo_base?: number;
         afp_codigo?: string;
         vida_ley?: boolean;
+        eps?: boolean;
+        cuenta_haberes?: string;
+        banco?: string;
     }>
 ): Promise<{ ok: boolean; error?: string; savedCount?: number }> {
     if (!supabase) return { ok: false, error: "Supabase no configurado." };
@@ -203,9 +207,10 @@ export async function upsertConfigsLote(
             sueldo_base: c.sueldo_base ?? prev?.sueldo_base ?? 0,
             afp_codigo: c.afp_codigo || prev?.afp_codigo || "ONP",
             vida_ley: c.vida_ley ?? prev?.vida_ley ?? false,
-            eps: prev?.eps ?? false,
+            eps: c.eps ?? prev?.eps ?? false,
             sctr: prev?.sctr ?? false,
-            cuenta_haberes: prev?.cuenta_haberes ?? "",
+            cuenta_haberes: c.cuenta_haberes || prev?.cuenta_haberes || "",
+            banco: c.banco || prev?.banco || "",
             updated_at: new Date().toISOString(),
         };
     });

@@ -33,6 +33,9 @@ interface FilaValidada {
     sueldoBase: number;
     afpCodigo: string;
     vidaLey: boolean;
+    eps: boolean;
+    cuentaHaberes?: string;
+    banco?: string;
     //
     esValido: boolean;
     observacion?: string;
@@ -144,6 +147,14 @@ export default function ImportadorHistoricoAvanzado({ tareoAnalistaId, onImportC
                 const afpCodigo = afpRaw ? normalizeAfp(afpRaw) : "";
                 const essVidaVal = parseNum(getColValue(row, columnMap, "ESS_VIDA"));
                 const vidaLey = essVidaVal > 0;
+                
+                // EPS (si hay valor > 0, es true)
+                const epsVal = parseNum(getColValue(row, columnMap, "EPS"));
+                const eps = epsVal > 0;
+
+                // Nuevos campos solicitados: Banco y Cuenta
+                const cuentaHaberes = asString(getColValue(row, columnMap, "NRO_CUENTA"));
+                const banco = asString(getColValue(row, columnMap, "BANCO"));
 
                 let matchBd = mapEmpleados.get(dni);
                 let dniFinal = dni;
@@ -162,7 +173,8 @@ export default function ImportadorHistoricoAvanzado({ tareoAnalistaId, onImportC
                     diasTrabajados, descansoLab, descMed, vac, licSinH,
                     susp, ausSinJust, movilidad, comisiones,
                     bonoProductividad, bonoAlimentacion, retJud,
-                    sueldoBase, afpCodigo, vidaLey,
+                    sueldoBase, afpCodigo, vidaLey, eps,
+                    cuentaHaberes, banco,
                     esValido: !!matchBd,
                     observacion: matchBd ? undefined : "DNI no encontrado en la base de datos",
                 });
@@ -225,12 +237,15 @@ export default function ImportadorHistoricoAvanzado({ tareoAnalistaId, onImportC
 
                 // 2. Guardar tareo_employee_config (solo para filas con datos de config)
                 const configs = registrosValidos
-                    .filter(reg => reg.sueldoBase > 0 || reg.afpCodigo)
+                    .filter(reg => reg.sueldoBase > 0 || reg.afpCodigo || reg.cuentaHaberes || reg.banco || reg.eps)
                     .map(reg => ({
                         employee_id: reg.empleadoId!,
                         sueldo_base: reg.sueldoBase || undefined,
                         afp_codigo: reg.afpCodigo || undefined,
                         vida_ley: reg.vidaLey,
+                        eps: reg.eps,
+                        cuenta_haberes: reg.cuentaHaberes || undefined,
+                        banco: reg.banco || undefined,
                     }));
 
                 if (configs.length > 0) {
@@ -363,6 +378,8 @@ export default function ImportadorHistoricoAvanzado({ tareoAnalistaId, onImportC
                                                     <th style={{ padding: "5px 4px", textAlign: "right" }}>Sueldo</th>
                                                     <th style={{ padding: "5px 4px", textAlign: "center" }}>AFP</th>
                                                     <th style={{ padding: "5px 4px", textAlign: "center" }}>VL</th>
+                                                    <th style={{ padding: "5px 4px", textAlign: "center" }}>EPS</th>
+                                                    <th style={{ padding: "5px 4px", textAlign: "left" }}>Banco</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -377,6 +394,10 @@ export default function ImportadorHistoricoAvanzado({ tareoAnalistaId, onImportC
                                                         <td style={{ padding: "5px 4px", textAlign: "right", fontWeight: 600, color: r.sueldoBase > 0 ? "var(--color-text)" : "var(--color-text-muted)" }}>{fmtS(r.sueldoBase)}</td>
                                                         <td style={{ padding: "5px 4px", textAlign: "center", fontSize: "10px", color: r.afpCodigo ? "var(--color-primary)" : "var(--color-text-muted)" }}>{r.afpCodigo || "—"}</td>
                                                         <td style={{ padding: "5px 4px", textAlign: "center" }}>{r.vidaLey ? "✓" : "—"}</td>
+                                                        <td style={{ padding: "5px 4px", textAlign: "center" }}>{r.eps ? "✓" : "—"}</td>
+                                                        <td style={{ padding: "5px 4px", textAlign: "left", fontSize: "10px", color: "var(--color-text-muted)" }}>
+                                                            {r.banco ? `${r.banco} ${r.cuentaHaberes ? `(${r.cuentaHaberes})` : ""}` : "—"}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -437,6 +458,8 @@ export default function ImportadorHistoricoAvanzado({ tareoAnalistaId, onImportC
                             <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>💼 Sueldo base</span>
                             <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>🏦 AFP</span>
                             <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>🛡 Vida ley</span>
+                            <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>🏥 EPS</span>
+                            <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>🏛 Banco/Cta</span>
                         </div>
                     </div>
                 )}

@@ -84,8 +84,36 @@ export const COLUMN_ALIASES: Record<string, string[]> = {
     DCTO_CONTRA_GRATIF: ["DESCUENTO CONTRA GRATIFICACIÓN", "DESCUENTO CONTRA GRATIFICACION"],
 
     // Banco
-    BANCO: ["NOMBRE ENTIDAD"],
-    NRO_CUENTA: ["NUMEROS DE CUENTA HABERES", "NUMERO DE CUENTA"],
+    BANCO: ["NOMBRE ENTIDAD", "BANCO"],
+    NRO_CUENTA: ["NUMEROS DE CUENTA HABERES", "NUMERO DE CUENTA", "CUENTA BANCARIA"],
+
+    // Otros campos informativos (para evitar advertencias)
+    FECHA_INGRESO: ["FECHA DE INGRESO", "FECHA ING"],
+    BASICO_FERIADO: ["BASICO FERIADO | DESCANSO LAB", "BASICO FERIADO"],
+    TOTAL_GENERICO: ["TOTAL"],
+    COMISION_80: ["COMISION AL 80 %", "COMISION 80%"],
+    REG_INCENTIVO: ["REGULARIZA INCENTIVO"],
+    BONIF_EXTRA: ["BONIF EXTRA GRATIF.", "BONIF EXTRA GRATIF"],
+    PREMIO_CERT: ["PREMIO EXTRAORDINARIO DE CERTIFICACIÓN", "PREMIO EXTRAORDINARIO DE CERTIFICACION"],
+    CANASTA: ["CANASTA DE NAVIDAD O SIMILARES", "CANASTA"],
+    TOTAL_INGRESOS: ["TOTAL INGRESOS"],
+    BASE_AFECTA: ["BASE AFECTA"],
+    TOTAL_DSCTOS: ["TOTAL DSCTOS", "TOTAL DESCUENTOS"],
+    TOTAL_PAGAR: ["TOTAL A PAGAR", "NETO A PAGAR"],
+    ESS_9: ["ESS 9%"],
+    EPS_2_25: ["EPS 2.25%"],
+    EPS: ["EPS"],
+    CENTRO_COSTO: ["CENTRO COSTO", "C.C."],
+    SUCURSAL: ["SUCURSAL"],
+    INI_VAC: ["FECHA DE INICIO VAC", "INICIO VAC"],
+    FIN_VAC: ["FECHA DE TERMINO VAC", "FIN VAC", "TERMINO VAC"],
+    SITUACION_ESP: ["SITUACION ESPECIAL DEL TRABAJADOR"],
+    TIPO_CONTRATO: ["TIPO DE CONTRATO"],
+    STAD: ["STAD"],
+    CESE: ["CESE"],
+    SCTR: ["SCTR"],
+    NUMERO_ROW: ["N°", "NRO"],
+    MES_TXT: ["MES"],
 };
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -159,8 +187,15 @@ export function buildColumnMap(
     const unknown: string[] = [];
     const seenKeys = new Set<ColumnKey>();
 
-    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-        const raw = String(cell.value ?? "");
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        let val = cell.value;
+        // Soporte para celdas combinadas: si la celda actual está vacía pero es parte de un merge,
+        // tomamos el valor de la celda maestra (top-left).
+        if ((val == null || val === "") && cell.isMerged && cell.master) {
+            val = cell.master.value;
+        }
+
+        const raw = String(val ?? "");
         const norm = normalize(raw);
         const key = aliasLookup.get(norm);
 
