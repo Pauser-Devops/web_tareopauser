@@ -4,9 +4,6 @@
 import pauserLogo from "../assets/pauser_logo.png";
 import { verifySession } from "../lib/session";
 
-const sbUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? "";
-const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
-
 // Redirigir al dashboard si ya tiene sesión válida (server-side)
 const sessionCookie = Astro.cookies.get("pt_session");
 if (sessionCookie?.value) {
@@ -28,9 +25,6 @@ if (sessionCookie?.value) {
             content="Sistema de gestión de planillas laborales — PAUSER DISTRIBUCIONES S.A.C."
         />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <!-- Supabase config (usadas por el script de login) -->
-        <meta name="sb-url" content={sbUrl} />
-        <meta name="sb-key" content={sbKey} />
         <link
             href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
             rel="stylesheet"
@@ -1105,75 +1099,44 @@ if (sessionCookie?.value) {
         </div>
 
         <script type="module">
-            // ── Importar módulo de auth (real Supabase) ───────────────────────
-            // Usamos dynamic import para compatibilidad con Astro SSG
-            const { login, getBlockedMs } =
-                (await import("/src/lib/auth.ts").catch(() => null)) ??
-                    (await import("/_astro/auth.ts").catch(() => null)) ?? {
-                        login: null,
-                        getBlockedMs: () => 0,
-                    };
+            // ── Login: llama /api/login (server-side, setea cookie HttpOnly) ──
+            const RL_KEY = "pt_rl";
 
-            // Fallback: si el import falla (build estático), usar fetch directo
+            function getBlockedMs() {
+                try {
+                    const st = JSON.parse(localStorage.getItem(RL_KEY) || '{"blockedUntil":0}');
+                    return Math.max(0, (st.blockedUntil || 0) - Date.now());
+                } catch { return 0; }
+            }
+
             async function doLogin(dni, password) {
-                if (login) return login(dni, password);
-                // Fallback manual usando fetch a Supabase RPC
-                const url =
-                    document.querySelector('meta[name="sb-url"]')?.content ||
-                    "";
-                const key =
-                    document.querySelector('meta[name="sb-key"]')?.content ||
-                    "";
-                if (!url || !key)
-                    return { ok: false, error: "Supabase no configurado." };
-                const res = await fetch(
-                    `${url}/rest/v1/rpc/verify_tareo_login`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            apikey: key,
-                            Authorization: `Bearer ${key}`,
-                        },
-                        body: JSON.stringify({
-                            p_dni: dni.trim(),
-                            p_password: password,
-                        }),
-                    },
-                );
+                const blocked = getBlockedMs();
+                if (blocked > 0) {
+                    return { ok: false, error: `Demasiados intentos. Espera ${Math.ceil(blocked / 1000)}s.`, blockedMs: blocked };
+                }
+                const res = await fetch("/api/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dni: dni.trim(), password }),
+                });
                 const data = await res.json();
                 if (!res.ok || !data?.ok) {
-                    // Rate limiting en cliente (localStorage)
-                    const RL_KEY = "pt_rl";
-                    const st = JSON.parse(
-                        localStorage.getItem(RL_KEY) ||
-                            '{"tries":0,"blockedUntil":0}',
-                    );
+                    const st = JSON.parse(localStorage.getItem(RL_KEY) || '{"tries":0,"blockedUntil":0}');
                     st.tries = (st.tries || 0) + 1;
-                    if (st.tries >= 3) {
-                        st.blockedUntil = Date.now() + 30000;
-                        st.tries = 0;
-                    }
+                    if (st.tries >= 3) { st.blockedUntil = Date.now() + 30000; st.tries = 0; }
                     localStorage.setItem(RL_KEY, JSON.stringify(st));
                     return {
                         ok: false,
-                        error: "Credenciales incorrectas o sin acceso autorizado.",
-                        blockedMs: Math.max(0, st.blockedUntil - Date.now()),
+                        error: data?.error ?? "Credenciales incorrectas o sin acceso autorizado.",
+                        blockedMs: Math.max(0, (st.blockedUntil || 0) - Date.now()),
                     };
                 }
-                const rolFinal = (data.rol === "jefe" || data.rol === "analista") ? data.rol : "analista";
-
-                const user = {
-                    id: data.id,
-                    nombre: data.nombre,
-                    position: data.position,
-                    sede: data.sede,
-                    rol: rolFinal,
-                };
-                sessionStorage.setItem("pt_auth", JSON.stringify(user));
-                // La cookie pt_session (HttpOnly, firmada) la setea el servidor en /api/login.
-                // NO setear aquí via document.cookie — la cookie unsigned rompía verifySession.
-                localStorage.removeItem("pt_rl");
+                // Cookie pt_session (HttpOnly, firmada) ya seteada por el servidor.
+                // Guardamos usuario en sessionStorage solo para la UI.
+                if (data.user) {
+                    sessionStorage.setItem("pt_auth", JSON.stringify({ ...data.user, token: data.token }));
+                }
+                localStorage.removeItem(RL_KEY);
                 return { ok: true };
             }
 
